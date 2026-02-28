@@ -1,0 +1,111 @@
+---
+title: "Next.js App Router: Advanced Patterns for Production"
+description: "Exploring advanced patterns and best practices for building production applications with Next.js App Router, React Server Components, and Server Actions."
+date: "2026-02-01"
+tags: ["Next.js", "React", "TypeScript", "Performance"]
+published: true
+---
+
+## The App Router Revolution
+
+Next.js App Router fundamentally changed how we build React applications. With React Server Components (RSC), we can now render components on the server by default, sending minimal JavaScript to the client.
+
+## Server Components vs Client Components
+
+Understanding when to use each is crucial:
+
+**Server Components** (default):
+- Fetch data directly
+- Access backend resources
+- Keep sensitive data on server
+- Reduce client bundle size
+
+**Client Components** (`"use client"`):
+- Interactivity and event handlers
+- Browser APIs
+- State and effects
+- Custom hooks with state
+
+```tsx
+// Server Component - fetches data directly
+async function ProjectList() {
+  const projects = await db.project.findMany({
+    orderBy: { createdAt: 'desc' },
+    take: 10
+  });
+
+  return (
+    <div className="grid gap-4">
+      {projects.map(project => (
+        <ProjectCard key={project.id} project={project} />
+      ))}
+    </div>
+  );
+}
+```
+
+## Streaming and Suspense
+
+One of the most powerful patterns is streaming with Suspense boundaries:
+
+```tsx
+import { Suspense } from 'react';
+
+export default function DashboardPage() {
+  return (
+    <div className="grid grid-cols-3 gap-6">
+      <Suspense fallback={<MetricsSkeleton />}>
+        <MetricsPanel />
+      </Suspense>
+      <Suspense fallback={<ChartSkeleton />}>
+        <AnalyticsChart />
+      </Suspense>
+      <Suspense fallback={<ActivitySkeleton />}>
+        <RecentActivity />
+      </Suspense>
+    </div>
+  );
+}
+```
+
+This allows each section to load independently, improving perceived performance dramatically.
+
+## Server Actions
+
+Server Actions provide a way to handle form submissions and mutations without API routes:
+
+```tsx
+async function createProject(formData: FormData) {
+  'use server';
+  
+  const title = formData.get('title') as string;
+  const description = formData.get('description') as string;
+  
+  await db.project.create({
+    data: { title, description }
+  });
+  
+  revalidatePath('/projects');
+  redirect('/projects');
+}
+```
+
+## Caching Strategies
+
+Next.js provides multiple caching layers:
+
+1. **Request Memoization** - Automatic deduplication of fetch requests
+2. **Data Cache** - Persistent cache for fetch results
+3. **Full Route Cache** - Static rendering at build time
+4. **Router Cache** - Client-side prefetch cache
+
+## Performance Tips
+
+- Use `loading.tsx` for instant route transitions
+- Implement `generateStaticParams` for static generation
+- Leverage parallel routes for complex layouts
+- Use `next/dynamic` for code splitting heavy components
+
+## Conclusion
+
+The App Router is a paradigm shift that makes React applications faster and more maintainable. Embrace server components, stream your UI, and leverage the caching layers for optimal performance.

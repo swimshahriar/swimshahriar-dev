@@ -1,0 +1,97 @@
+---
+title: "Building Scalable Microservices with Go and gRPC"
+description: "A deep dive into designing and implementing production-grade microservices using Go, gRPC, and modern distributed systems patterns."
+date: "2026-02-15"
+tags: ["Go", "gRPC", "Microservices", "Architecture"]
+published: true
+---
+
+## Introduction
+
+Building microservices that can handle millions of requests requires careful consideration of communication protocols, error handling, and observability. In this post, I'll walk through my approach to building production-grade microservices with Go and gRPC.
+
+## Why Go for Microservices?
+
+Go's simplicity, excellent concurrency model, and small binary sizes make it an ideal choice for microservices:
+
+- **Goroutines** make concurrent processing trivial
+- **Fast compilation** speeds up the development loop
+- **Static binaries** simplify deployment and containerization
+- **Strong standard library** reduces dependency bloat
+
+```go
+package main
+
+import (
+    "log"
+    "net"
+    "google.golang.org/grpc"
+    pb "github.com/example/proto"
+)
+
+type server struct {
+    pb.UnimplementedUserServiceServer
+}
+
+func main() {
+    lis, err := net.Listen("tcp", ":50051")
+    if err != nil {
+        log.Fatalf("failed to listen: %v", err)
+    }
+    
+    s := grpc.NewServer()
+    pb.RegisterUserServiceServer(s, &server{})
+    
+    log.Printf("server listening at %v", lis.Addr())
+    if err := s.Serve(lis); err != nil {
+        log.Fatalf("failed to serve: %v", err)
+    }
+}
+```
+
+## gRPC vs REST
+
+While REST is great for public-facing APIs, gRPC shines in service-to-service communication:
+
+| Feature | REST | gRPC |
+|---------|------|------|
+| Protocol | HTTP/1.1 | HTTP/2 |
+| Serialization | JSON | Protocol Buffers |
+| Contract | OpenAPI | .proto files |
+| Streaming | Limited | Full duplex |
+| Performance | Good | Excellent |
+
+## Error Handling Patterns
+
+Proper error handling in distributed systems is critical. I use a layered approach:
+
+1. **Domain errors** - Business logic validation
+2. **Infrastructure errors** - Database, network failures
+3. **gRPC status codes** - Standardized error communication
+
+```go
+func (s *server) GetUser(ctx context.Context, req *pb.GetUserRequest) (*pb.User, error) {
+    user, err := s.repo.FindByID(ctx, req.GetId())
+    if err != nil {
+        if errors.Is(err, ErrNotFound) {
+            return nil, status.Errorf(codes.NotFound, "user not found: %s", req.GetId())
+        }
+        return nil, status.Errorf(codes.Internal, "internal error")
+    }
+    return toProto(user), nil
+}
+```
+
+## Observability
+
+Every production microservice needs three pillars of observability:
+
+- **Logging** - Structured logs with correlation IDs
+- **Metrics** - Prometheus counters, histograms, gauges
+- **Tracing** - Distributed traces with OpenTelemetry
+
+## Conclusion
+
+Go and gRPC form a powerful combination for building microservices. The key is to keep services focused, handle errors gracefully, and invest in observability from day one.
+
+What's your experience with Go microservices? Let me know on [Twitter](https://twitter.com/swimshahriar)!

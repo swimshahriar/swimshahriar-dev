@@ -1,0 +1,127 @@
+---
+title: "TypeScript Tips That 10x Your Productivity"
+description: "Advanced TypeScript patterns, utility types, and techniques that will make your code more type-safe and your development faster."
+date: "2026-01-20"
+tags: ["TypeScript", "React", "DX", "Tips"]
+published: true
+---
+
+## Beyond the Basics
+
+TypeScript is more than just adding types to JavaScript. When used effectively, it becomes a powerful tool for catching bugs at compile time and improving developer experience.
+
+## 1. Discriminated Unions for State Management
+
+Instead of optional properties, use discriminated unions:
+
+```typescript
+// ❌ Unclear what's available when
+interface ApiState {
+  loading: boolean;
+  data?: User[];
+  error?: string;
+}
+
+// ✅ Each state is explicit
+type ApiState =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'success'; data: User[] }
+  | { status: 'error'; error: string };
+
+function renderState(state: ApiState) {
+  switch (state.status) {
+    case 'idle': return <Idle />;
+    case 'loading': return <Spinner />;
+    case 'success': return <UserList data={state.data} />;
+    case 'error': return <Error message={state.error} />;
+  }
+}
+```
+
+## 2. Template Literal Types
+
+Create powerful string type patterns:
+
+```typescript
+type EventName = `on${Capitalize<string>}`;
+type CSSProperty = `--${string}`;
+type RouteParam = `/:${string}`;
+
+// More practical example
+type HTTPMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
+type APIRoute = `/api/${string}`;
+type Endpoint = `${HTTPMethod} ${APIRoute}`;
+
+const endpoint: Endpoint = 'GET /api/users'; // ✅
+```
+
+## 3. Branded Types for Domain Safety
+
+Prevent mixing up similar primitive types:
+
+```typescript
+type Brand<T, B extends string> = T & { __brand: B };
+
+type UserId = Brand<string, 'UserId'>;
+type PostId = Brand<string, 'PostId'>;
+
+function getUser(id: UserId): Promise<User> { /* ... */ }
+function getPost(id: PostId): Promise<Post> { /* ... */ }
+
+const userId = 'abc' as UserId;
+const postId = 'xyz' as PostId;
+
+getUser(userId); // ✅
+getUser(postId); // ❌ Type error!
+```
+
+## 4. Const Assertions for Immutable Data
+
+```typescript
+const ROUTES = {
+  home: '/',
+  about: '/about',
+  blog: '/blog',
+  contact: '/contact',
+} as const;
+
+type Route = typeof ROUTES[keyof typeof ROUTES];
+// Type: '/' | '/about' | '/blog' | '/contact'
+```
+
+## 5. Infer Keyword Magic
+
+Extract types from complex structures:
+
+```typescript
+type ReturnTypeOf<T> = T extends (...args: any[]) => infer R ? R : never;
+
+// Extract props from a React component
+type PropsOf<T> = T extends React.ComponentType<infer P> ? P : never;
+
+// Extract array element type
+type ElementOf<T> = T extends readonly (infer E)[] ? E : never;
+
+const colors = ['red', 'blue', 'green'] as const;
+type Color = ElementOf<typeof colors>; // 'red' | 'blue' | 'green'
+```
+
+## 6. Satisfies Operator
+
+Validate types without widening:
+
+```typescript
+const config = {
+  api: 'https://api.example.com',
+  timeout: 5000,
+  retries: 3,
+} satisfies Record<string, string | number>;
+
+// config.api is still typed as string (not string | number)
+config.api.toUpperCase(); // ✅ Works!
+```
+
+## Conclusion
+
+These patterns will help you write more expressive, type-safe code. TypeScript's type system is incredibly powerful — invest time in learning it deeply, and it will pay dividends in code quality and developer experience.
