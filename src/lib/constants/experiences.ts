@@ -14,6 +14,17 @@ export const experiences: Experience[] = [
     companyUrl: "https://strativ.se",
     period: "Jan 2026 — Present",
     description: "",
+    tags: [
+      "React.js",
+      "TypeScript",
+      "JavaScript",
+      "Golang",
+      "MongoDB",
+      "React Query",
+      "Zustand",
+      "Material UI",
+      "Leadership",
+    ],
   },
   {
     role: "Software Engineer L4",
