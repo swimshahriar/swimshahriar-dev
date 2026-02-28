@@ -15,10 +15,10 @@ export const siteConfig = {
 
 export const navItems = [
   { label: "Home", href: "/" },
-  { label: "About", href: "#about" },
-  { label: "Projects", href: "#projects" },
+  { label: "About", href: "/#about" },
+  { label: "Projects", href: "/#projects" },
   { label: "Blog", href: "/blog" },
-  { label: "Contact", href: "#contact" },
+  { label: "Contact", href: "/#contact" },
 ] as const;
 
 export const skills = [

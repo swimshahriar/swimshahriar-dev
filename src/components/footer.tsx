@@ -40,7 +40,7 @@ export function Footer() {
               {["Home", "About", "Projects", "Blog", "Contact"].map((item) => (
                 <Link
                   key={item}
-                  href={item === "Home" ? "/" : item === "Blog" ? "/blog" : `#${item.toLowerCase()}`}
+                  href={item === "Home" ? "/" : item === "Blog" ? "/blog" : `/#${item.toLowerCase()}`}
                   className="text-sm text-muted-foreground hover:text-primary transition-colors"
                 >
                   {item}
