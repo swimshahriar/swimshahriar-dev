@@ -8,7 +8,7 @@ export const siteConfig = {
   links: {
     github: "https://github.com/swimshahriar",
     linkedin: "https://linkedin.com/in/swimshahriar",
-    twitter: "https://twitter.com/swimshahriar",
+    twitter: "https://x.com/swimshahriar",
     email: "hello@swimshahriar.dev",
   },
 };
