@@ -80,7 +80,7 @@ export function AboutSection() {
               {experiences.map((exp, index) => (
                 <StaggerItem key={index}>
                   <div className="relative pl-6 border-l-2 border-border/50 hover:border-primary/50 transition-colors group">
-                    <div className="absolute -left-[7px] top-1 h-3 w-3 rounded-full border-2 border-border bg-background group-hover:border-primary transition-colors" />
+                    <div className="absolute -left-1.75 top-1 h-3 w-3 rounded-full border-2 border-border bg-background group-hover:border-primary transition-colors" />
                     <div className="space-y-1">
                       <p className="font-mono text-xs text-primary">
                         {exp.period}
@@ -92,6 +92,18 @@ export function AboutSection() {
                       <p className="text-sm text-muted-foreground leading-relaxed pt-1">
                         {exp.description}
                       </p>
+                      {"tags" in exp && (exp as { tags: readonly string[] }).tags && (
+                        <div className="flex flex-wrap gap-1.5 pt-2">
+                          {(exp as { tags: readonly string[] }).tags.map((tag) => (
+                            <span
+                              key={tag}
+                              className="inline-flex items-center rounded-full border border-border/50 bg-muted/50 px-2 py-0.5 text-[10px] font-mono text-muted-foreground"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </StaggerItem>

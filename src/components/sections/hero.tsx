@@ -73,7 +73,7 @@ export function HeroSection() {
         >
           <span className="block">Hi, I&apos;m</span>
           <span className="block gradient-text text-glow mt-2">
-            Swim Shahriar
+            S. M. Shahriar
           </span>
         </motion.h1>
 

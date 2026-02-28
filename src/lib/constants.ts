@@ -146,24 +146,44 @@ export const projects: Project[] = [
 
 export const experiences = [
   {
-    role: "Senior Software Engineer",
-    company: "Tech Company",
-    period: "2022 — Present",
+    role: "Senior Software Engineer L5",
+    company: "Strativ",
+    period: "Jan 2026 — Present",
     description:
-      "Leading frontend architecture for a large-scale SaaS platform. Mentoring junior engineers and driving adoption of TypeScript and Next.js across teams.",
+      "",
   },
   {
-    role: "Software Engineer",
-    company: "Startup Inc.",
-    period: "2020 — 2022",
+    role: "Software Engineer L4",
+    company: "Strativ",
+    period: "May 2024 — Dec 2025",
     description:
-      "Built and maintained microservices in Go serving millions of requests. Designed RESTful APIs and implemented real-time features with WebSockets.",
+      "Led frontend development for multiple high-impact projects while managing and mentoring a team of 5 engineers. Developed a custom RBAC package now standardized across many projects, improving security consistency. Optimized build performance and resolved critical caching issues, improving deployment pipelines. Served as Growth Coordinator, aligning team development with company objectives.",
+    tags: [
+      "React.js",
+      "TypeScript",
+      "JavaScript",
+      "Golang",
+      "React Query",
+      "Zustand",
+      "Ant Design",
+      "Leadership",
+    ],
   },
   {
-    role: "Frontend Developer",
-    company: "Agency Co.",
-    period: "2018 — 2020",
+    role: "Associate Software Engineer",
+    company: "Ollyo",
+    period: "Dec 2021 — Apr 2024",
     description:
-      "Delivered pixel-perfect, accessible web applications for high-profile clients using React and TypeScript.",
+      "Integrated OpenAI for text/image generation with variations and generative fill. Built a Media Manager and Color Library for a page builder app, improving visual coherence and UX. Managed a team of 3, fostering collaboration and knowledge sharing. Recognized as \"Outstanding Contributor of 2023\" for exceptional impact across projects.",
+    tags: [
+      "React.js",
+      "TypeScript",
+      "JavaScript",
+      "Redux",
+      "Zustand",
+      "React Query",
+      "DnD Kit",
+      "Leadership",
+    ],
   },
 ] as const;
