@@ -22,6 +22,13 @@ export const metadata: Metadata = {
   title: siteConfig.title,
   description: siteConfig.description,
   metadataBase: new URL(siteConfig.url),
+  icons: {
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/favicon.ico", sizes: "32x32" },
+    ],
+    apple: "/favicon.svg",
+  },
   openGraph: {
     title: siteConfig.title,
     description: siteConfig.description,

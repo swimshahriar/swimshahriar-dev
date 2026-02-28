@@ -21,7 +21,7 @@ export function Footer() {
                 <Terminal className="h-4 w-4 text-primary" />
               </div>
               <span className="font-mono text-sm font-semibold">
-                <span className="text-primary">swim</span>
+                <span className="text-primary">swimshahriar</span>
                 <span className="text-muted-foreground">.dev</span>
               </span>
             </Link>

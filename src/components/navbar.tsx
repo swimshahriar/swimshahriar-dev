@@ -40,7 +40,7 @@ export function Navbar() {
               <div className="absolute inset-0 rounded-lg bg-primary/5 group-hover:bg-primary/10 transition-colors" />
             </div>
             <span className="font-mono text-sm font-semibold tracking-tight">
-              <span className="text-primary">swim</span>
+              <span className="text-primary">swimshahriar</span>
               <span className="text-muted-foreground">.dev</span>
             </span>
           </Link>
