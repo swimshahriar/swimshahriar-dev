@@ -26,8 +26,8 @@ export function ContactSection() {
             Let&apos;s <span className="gradient-text">work together</span>
           </h2>
           <p className="mt-4 text-muted-foreground max-w-xl mx-auto">
-            Have a project in mind or want to discuss opportunities? I&apos;d love to
-            hear from you.
+            Have a project in mind or want to discuss opportunities? I&apos;d
+            love to hear from you.
           </p>
         </FadeIn>
 
@@ -72,7 +72,7 @@ export function ContactSection() {
               </div>
               <pre className="font-mono text-xs text-muted-foreground leading-relaxed">
                 <code>
-{`const developer = {
+                  {`const developer = {
   name: "Swim Shahriar",
   role: "Senior Software Engineer",
   stack: ["React", "TypeScript", "Next.js", "Go"],
@@ -86,18 +86,45 @@ export function ContactSection() {
             </div>
 
             <div className="flex gap-3">
-              <Button asChild variant="outline" size="sm" className="font-mono text-xs cursor-pointer">
-                <a href={siteConfig.links.github} target="_blank" rel="noopener noreferrer">
+              <Button
+                asChild
+                variant="outline"
+                size="sm"
+                className="font-mono text-xs cursor-pointer"
+              >
+                <a
+                  href={siteConfig.links.github}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
                   GitHub <ArrowUpRight className="h-3 w-3 ml-1" />
                 </a>
               </Button>
-              <Button asChild variant="outline" size="sm" className="font-mono text-xs cursor-pointer">
-                <a href={siteConfig.links.linkedin} target="_blank" rel="noopener noreferrer">
+              <Button
+                asChild
+                variant="outline"
+                size="sm"
+                className="font-mono text-xs cursor-pointer"
+              >
+                <a
+                  href={siteConfig.links.linkedin}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
                   LinkedIn <ArrowUpRight className="h-3 w-3 ml-1" />
                 </a>
               </Button>
-              <Button asChild variant="outline" size="sm" className="font-mono text-xs cursor-pointer">
-                <a href={siteConfig.links.twitter} target="_blank" rel="noopener noreferrer">
+              <Button
+                asChild
+                variant="outline"
+                size="sm"
+                className="font-mono text-xs cursor-pointer"
+              >
+                <a
+                  href={siteConfig.links.twitter}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
                   Twitter <ArrowUpRight className="h-3 w-3 ml-1" />
                 </a>
               </Button>
