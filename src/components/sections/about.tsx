@@ -3,7 +3,7 @@
 import { FadeIn, StaggerContainer, StaggerItem } from "@/components/motion";
 import { Badge } from "@/components/ui/badge";
 import { experiences } from "@/lib/constants";
-import { Code2, Briefcase, GraduationCap, Zap } from "lucide-react";
+import { ExternalLink, Code2, Briefcase, GraduationCap, Zap } from "lucide-react";
 
 export function AboutSection() {
   return (
@@ -86,15 +86,21 @@ export function AboutSection() {
                         {exp.period}
                       </p>
                       <h4 className="font-semibold">{exp.role}</h4>
-                      <p className="text-sm text-muted-foreground">
+                      <a
+                        href={exp.companyUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-primary transition-colors"
+                      >
                         {exp.company}
-                      </p>
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
                       <p className="text-sm text-muted-foreground leading-relaxed pt-1">
                         {exp.description}
                       </p>
-                      {"tags" in exp && (exp as { tags: readonly string[] }).tags && (
+                      {exp.tags && (
                         <div className="flex flex-wrap gap-1.5 pt-2">
-                          {(exp as { tags: readonly string[] }).tags.map((tag) => (
+                          {exp.tags.map((tag) => (
                             <span
                               key={tag}
                               className="inline-flex items-center rounded-full border border-border/50 bg-muted/50 px-2 py-0.5 text-[10px] font-mono text-muted-foreground"
