@@ -1,14 +1,54 @@
 "use client";
 
+import { useState } from "react";
 import { FadeIn } from "@/components/motion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { siteConfig } from "@/lib/constants";
-import { Mail, MapPin, Send, ArrowUpRight } from "lucide-react";
+import { Mail, MapPin, Send, ArrowUpRight, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
+
+type FormState = "idle" | "loading" | "success" | "error";
 
 export function ContactSection() {
+  const [formState, setFormState] = useState<FormState>("idle");
+  const [errorMessage, setErrorMessage] = useState("");
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setFormState("loading");
+    setErrorMessage("");
+
+    const form = e.currentTarget;
+    const data = {
+      access_key: process.env.NEXT_PUBLIC_WEB3FORMS_ACCESS_KEY ?? "",
+      name: (form.elements.namedItem("name") as HTMLInputElement).value,
+      email: (form.elements.namedItem("email") as HTMLInputElement).value,
+      subject: (form.elements.namedItem("subject") as HTMLInputElement).value,
+      message: (form.elements.namedItem("message") as HTMLTextAreaElement).value,
+    };
+
+    try {
+      const res = await fetch("https://api.web3forms.com/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify(data),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setFormState("success");
+        form.reset();
+      } else {
+        setErrorMessage(json.message ?? "Something went wrong. Please try again.");
+        setFormState("error");
+      }
+    } catch {
+      setErrorMessage("Network error. Please check your connection and try again.");
+      setFormState("error");
+    }
+  }
+
   return (
     <section id="contact" className="py-24 sm:py-32 relative bg-muted/30">
       <div className="absolute inset-0 grid-background opacity-50" />
@@ -134,11 +174,23 @@ export function ContactSection() {
           {/* Right: Contact Form */}
           <FadeIn direction="left" delay={0.2}>
             <form
-              action={`mailto:${siteConfig.links.email}`}
-              method="POST"
-              encType="text/plain"
+              onSubmit={handleSubmit}
               className="space-y-5 rounded-xl border border-border/50 bg-card/50 backdrop-blur-sm p-6 sm:p-8"
             >
+              {formState === "success" && (
+                <div className="flex items-center gap-3 rounded-lg border border-green-500/30 bg-green-500/10 p-4 text-sm text-green-600 dark:text-green-400">
+                  <CheckCircle className="h-4 w-4 shrink-0" />
+                  <span>Message sent! I&apos;ll get back to you soon.</span>
+                </div>
+              )}
+
+              {formState === "error" && (
+                <div className="flex items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  <span>{errorMessage}</span>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label
@@ -151,6 +203,7 @@ export function ContactSection() {
                     id="name"
                     name="name"
                     placeholder="John Doe"
+                    required
                     className="bg-background/50"
                   />
                 </div>
@@ -166,6 +219,7 @@ export function ContactSection() {
                     name="email"
                     type="email"
                     placeholder="john@example.com"
+                    required
                     className="bg-background/50"
                   />
                 </div>
@@ -182,6 +236,7 @@ export function ContactSection() {
                   id="subject"
                   name="subject"
                   placeholder="Project collaboration"
+                  required
                   className="bg-background/50"
                 />
               </div>
@@ -198,16 +253,27 @@ export function ContactSection() {
                   name="message"
                   placeholder="Tell me about your project..."
                   rows={5}
+                  required
                   className="bg-background/50 resize-none"
                 />
               </div>
 
               <Button
                 type="submit"
+                disabled={formState === "loading"}
                 className="w-full font-mono text-sm glow cursor-pointer"
               >
-                <Send className="h-4 w-4 mr-2" />
-                Send Message
+                {formState === "loading" ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Sending…
+                  </>
+                ) : (
+                  <>
+                    <Send className="h-4 w-4 mr-2" />
+                    Send Message
+                  </>
+                )}
               </Button>
             </form>
           </FadeIn>
