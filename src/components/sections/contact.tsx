@@ -64,13 +64,13 @@ export function ContactSection() {
             </div>
 
             {/* Terminal-style message */}
-            <div className="rounded-xl border border-border/50 bg-card/80 backdrop-blur-sm p-6">
+            <div className="rounded-xl border border-border/50 bg-card/80 backdrop-blur-sm p-6 overflow-hidden">
               <div className="flex items-center gap-2 mb-3">
                 <div className="h-3 w-3 rounded-full bg-destructive/60" />
                 <div className="h-3 w-3 rounded-full bg-chart-4/60" />
                 <div className="h-3 w-3 rounded-full bg-neon/60" />
               </div>
-              <pre className="font-mono text-xs text-muted-foreground leading-relaxed">
+              <pre className="font-mono text-xs text-muted-foreground leading-relaxed overflow-x-auto">
                 <code>
                   {`const developer = {
   name: "Swim Shahriar",
