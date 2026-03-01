@@ -10,61 +10,23 @@ export interface Project {
 
 export const projects: Project[] = [
   {
-    title: "Cloud-Native Microservices Platform",
+    title: "Locademy",
     description:
-      "Designed and built a production-grade microservices platform using Go and gRPC, serving 100K+ requests/minute with sub-50ms latency.",
-    tags: ["Go", "gRPC", "Kubernetes", "PostgreSQL", "Redis"],
-    image: "/projects/microservices.png",
-    github: "https://github.com/swimshahriar/microservices-platform",
-    live: "https://platform-demo.swimshahriar.dev",
+      "An offline desktop app that creates a structured video library from your own folders, turning scattered local videos into a focused learning experience. Features auto-organized modules, per-video and overall progress tracking, a clean built-in player, auto-advance to the next lesson, and system light/dark theme support — no logins, no uploads, no cloud.",
+    tags: ["Tauri v2", "React", "Rust", "Tailwind CSS"],
+    image: "/projects/locademy.png",
+    github: "https://github.com/swimshahriar/locademy",
+    live: "https://locademy.swimshahriar.dev",
     featured: true,
   },
   {
-    title: "Real-Time Collaboration Suite",
+    title: "react-access-boundary-v2",
     description:
-      "Full-stack real-time collaboration app with live cursors, document editing, and video conferencing built with Next.js and WebSockets.",
-    tags: ["Next.js", "TypeScript", "WebSocket", "Redis", "PostgreSQL"],
-    image: "/projects/collab.png",
-    github: "https://github.com/swimshahriar/collab-suite",
-    live: "https://collab.swimshahriar.dev",
+      "A React library for managing access control in UI components and routes. Features RouteGuard for route protection, single and multiple permission checks with AND/OR logic, customizable fallback UI, an AccessProvider for global permissions management, a useAccessContext hook, React Suspense compatibility, and full TypeScript support.",
+    tags: ["React", "TypeScript", "Access Control", "Open Source"],
+    image: "/projects/react-access-boundary.png",
+    github: "https://github.com/swimshahriar/react-access-boundary-v2",
+    live: "https://www.npmjs.com/package/react-access-boundary-v2",
     featured: true,
-  },
-  {
-    title: "AI-Powered Code Review Tool",
-    description:
-      "Intelligent code review assistant that analyzes PRs, suggests improvements, and auto-fixes common patterns using LLM integration.",
-    tags: ["TypeScript", "React", "Go", "OpenAI", "GitHub API"],
-    image: "/projects/code-review.png",
-    github: "https://github.com/swimshahriar/ai-code-review",
-    live: "https://review.swimshahriar.dev",
-    featured: true,
-  },
-  {
-    title: "Developer Analytics Dashboard",
-    description:
-      "Comprehensive analytics dashboard for developer productivity metrics with beautiful charts and real-time data streaming.",
-    tags: ["Next.js", "TypeScript", "D3.js", "Go", "ClickHouse"],
-    image: "/projects/analytics.png",
-    github: "https://github.com/swimshahriar/dev-analytics",
-    featured: false,
-  },
-  {
-    title: "Open Source CLI Framework",
-    description:
-      "Extensible CLI framework in Go with built-in plugin system, auto-completion, and interactive prompts.",
-    tags: ["Go", "CLI", "Open Source"],
-    image: "/projects/cli.png",
-    github: "https://github.com/swimshahriar/go-cli-framework",
-    featured: false,
-  },
-  {
-    title: "E-Commerce Storefront",
-    description:
-      "High-performance headless e-commerce storefront with ISR, edge caching, and Stripe integration.",
-    tags: ["Next.js", "TypeScript", "Stripe", "Prisma", "Tailwind"],
-    image: "/projects/ecommerce.png",
-    github: "https://github.com/swimshahriar/storefront",
-    live: "https://store.swimshahriar.dev",
-    featured: false,
   },
 ];
