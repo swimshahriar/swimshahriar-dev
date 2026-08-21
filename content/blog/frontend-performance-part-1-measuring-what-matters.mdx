@@ -1,0 +1,171 @@
+---
+title: "Frontend Performance — Part 1: Measuring What Actually Matters"
+description: "Core Web Vitals explained without the marketing: what LCP, INP, and CLS measure, why lab scores disagree with real users, and how to instrument your own site with the web-vitals API."
+date: "2026-05-27"
+tags: ["Performance", "Web Vitals", "Frontend", "Series"]
+published: true
+---
+
+## Start With the Scoreboard
+
+Every performance conversation I have been in that went nowhere started the same way: somebody shared a Lighthouse score. A single number, from one run, on one machine, on one network — and the whole team argued about it for an hour.
+
+Performance work only gets traction once you agree on what you are measuring and where the number comes from. This is part one of two: this post is about measurement, [part two](/blog/frontend-performance-part-2-shipping-less-javascript) is about the fixes.
+
+## The Three Metrics That Count
+
+Google's Core Web Vitals settled on three, and they were chosen well: each maps to a distinct thing users complain about.
+
+| Metric | What the user feels | Good | Needs work | Poor |
+|---|---|---|---|---|
+| **LCP** — Largest Contentful Paint | "Is it there yet?" | up to 2.5s | 2.5s – 4s | over 4s |
+| **INP** — Interaction to Next Paint | "Did my tap do anything?" | up to 200ms | 200ms – 500ms | over 500ms |
+| **CLS** — Cumulative Layout Shift | "Why did the button move?" | up to 0.1 | 0.1 – 0.25 | over 0.25 |
+
+Those thresholds apply at the **75th percentile** of your real visitors. That framing is the most important detail on this page: you are not optimizing your average user, you are optimizing so that three out of four have a good time. Your median can look great while the 75th percentile fails, and it usually does, because medians hide the slow-device tail entirely.
+
+### LCP
+
+LCP marks when the largest element in the viewport finished rendering — usually a hero image, a video poster, or a big block of text. It is the closest single number to "the page looks loaded."
+
+It breaks down into four parts, and knowing which one dominates tells you what to fix:
+
+1. **Time to first byte** — server and network
+2. **Resource load delay** — how long until the browser even starts fetching the LCP element
+3. **Resource load time** — downloading it
+4. **Element render delay** — the gap between having the bytes and painting them
+
+That second one is where the surprises live. If your hero image is referenced by JavaScript that has to download, parse, and execute first, the browser cannot start fetching until late — and no amount of image compression fixes a fetch that started two seconds in.
+
+### INP
+
+INP replaced FID in March 2024, and the change was overdue. FID measured only *input delay* on the first interaction, so a page could score perfectly while every subsequent click froze for half a second. INP measures the full latency of an interaction — input delay, processing, and the next paint — and reports roughly the worst one across the visit.
+
+The three phases again map to distinct causes:
+
+- **Input delay** — the main thread was busy with something else when the tap arrived
+- **Processing time** — your event handler itself is slow
+- **Presentation delay** — style, layout, and paint after the handler finished
+
+Most bad INP I have debugged was input delay, not handler code. The page was busy hydrating, running analytics, or parsing a third-party bundle, and the click sat in a queue.
+
+### CLS
+
+CLS sums layout shifts that were not caused by user interaction, weighted by how much of the viewport moved and how far. It is the cheapest of the three to fix and the most annoying to experience.
+
+Reliable causes, all avoidable:
+
+- Images and videos without `width` and `height` (or an `aspect-ratio`)
+- Web fonts swapping in at a different size than the fallback
+- Ads, embeds, and banners injected above existing content
+- A skeleton whose dimensions do not match the real content
+
+## Lab Data vs Field Data
+
+This is the distinction that ends the Lighthouse argument.
+
+**Lab data** is a synthetic run: Lighthouse, PageSpeed Insights' analysis mode, WebPageTest, a CI check. Fixed CPU throttling, simulated network, no real user. It is reproducible and great for catching regressions in a pull request — and it cannot tell you what your users experience.
+
+**Field data** is collected from real sessions: your own RUM, or the Chrome User Experience Report aggregated from opted-in Chrome users. It reflects actual devices, actual networks, actual cache states, actual ad blockers.
+
+They disagree constantly, for structural reasons:
+
+- Lighthouse cannot measure INP at all, because there is nobody to interact. It reports Total Blocking Time as a proxy.
+- Lab CLS misses shifts caused by scrolling, lazy-loaded content, and late ads.
+- Lab runs are cold-cache; a large share of your traffic is warm.
+- Your laptop on office wifi is not a four-year-old mid-range Android phone on congested mobile data.
+
+Use both, for different jobs. Lab data answers "did this change make it worse?" Field data answers "do we have a problem?" **Field data wins every argument**, because it is the only one describing reality — and it is what search ranking uses.
+
+## Instrumenting Your Own Site
+
+Field data from a public dataset comes with a multi-week lag and no ability to segment by route or component. Your own RUM has neither problem, and it is about fifteen lines.
+
+The `web-vitals` library is the reference implementation, maintained by the Chrome team, and it handles the edge cases you would otherwise get wrong — reporting on tab hide, attributing to the right element, matching the exact metric definitions:
+
+```ts
+import { onLCP, onINP, onCLS, onTTFB } from "web-vitals";
+
+function report(metric: { name: string; value: number; rating: string; id: string }) {
+  const body = JSON.stringify({
+    name: metric.name,
+    value: metric.value,
+    rating: metric.rating,
+    id: metric.id,
+    path: location.pathname,
+    connection: (navigator as any).connection?.effectiveType,
+  });
+
+  // sendBeacon survives page unload; fetch with keepalive is the fallback
+  navigator.sendBeacon?.("/api/vitals", body) ??
+    fetch("/api/vitals", { body, method: "POST", keepalive: true });
+}
+
+onLCP(report);
+onINP(report);
+onCLS(report);
+onTTFB(report);
+```
+
+Call that once, client-side, after hydration. In Next.js the App Router equivalent is a small client component using `useReportWebVitals`, mounted in the root layout.
+
+Two things to get right on the receiving end:
+
+**Store raw events, not averages.** You cannot recover a 75th percentile from a stored mean. Keep individual samples with enough dimensions to slice — route, device class, connection type, release version — and compute percentiles at query time.
+
+**Send the attribution.** The `web-vitals` attribution build tells you *which element* was the LCP and *which target* caused the worst interaction. That turns "LCP is 3.4s on the pricing page" into "the hero image on the pricing page starts loading 1.9s in," which is an actionable ticket instead of a vague one.
+
+### Going Lower Level
+
+If you want to see the machinery, `PerformanceObserver` is what the library wraps:
+
+```ts
+// Every task over 50ms that blocked the main thread
+new PerformanceObserver((list) => {
+  for (const entry of list.getEntries()) {
+    console.log("long task", entry.duration, entry.name);
+  }
+}).observe({ type: "longtask", buffered: true });
+
+// Long Animation Frames: richer, includes scripts and style/layout cost
+new PerformanceObserver((list) => {
+  for (const entry of list.getEntries()) {
+    console.log("LoAF", entry.duration, (entry as any).scripts);
+  }
+}).observe({ type: "long-animation-frame", buffered: true });
+```
+
+The Long Animation Frames API is the better of the two for chasing INP, because it attributes the frame to the specific scripts that ran in it — including third-party ones you did not write and cannot see in your own stack traces.
+
+## Budgets, So It Stays Fixed
+
+Performance regresses by default. Every sprint adds a dependency, an experiment, or a tag, and nobody notices until the quarter's numbers come in.
+
+What has actually worked for me:
+
+- **A CI check on bundle size** per route, failing the build over a threshold. Cheap, and it catches the 90KB date library somebody imported for one `format` call.
+- **Lighthouse CI on the handful of routes that matter**, comparing against the base branch rather than an absolute score. Absolute Lighthouse numbers are too noisy to gate on; deltas are usable.
+- **A field-data dashboard by route**, reviewed on a schedule. Not a wall display nobody looks at — an actual recurring agenda item.
+- **One owner.** Shared responsibility for performance means nobody's.
+
+Write the budgets down as numbers before you start optimizing. "Faster" is not a target, and without a stopping condition performance work either never starts or never ends.
+
+## Where to Look First
+
+A rough triage order that maps symptoms to the usual culprit:
+
+| Symptom | Look at |
+|---|---|
+| High TTFB | Server response time, redirects, missing CDN, cold serverless starts |
+| High LCP, low TTFB | Late-discovered hero resource, render-blocking CSS or JS, unoptimized image |
+| High INP | Hydration cost, long tasks, oversized event handlers, third-party scripts |
+| High CLS | Missing image dimensions, font swap, injected banners |
+| Fine on desktop, bad on mobile | JavaScript execution cost — CPU, not bandwidth |
+
+That last row is the one teams underestimate most. Mid-range phones parse and execute JavaScript several times slower than a developer laptop. Bandwidth has improved dramatically over a decade; single-core CPU on a budget Android has not kept pace. Which is exactly the subject of part two.
+
+## Next Up
+
+[Part 2 — Shipping Less JavaScript](/blog/frontend-performance-part-2-shipping-less-javascript) covers the fixes: code splitting that reflects real routes, cutting hydration cost, image and font strategy, taming third parties, and yielding to the main thread so interactions stay under 200ms.
+
+Measuring your own vitals and seeing something surprising? I am curious — [X](https://x.com/swimshahriar).

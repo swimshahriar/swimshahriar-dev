@@ -1,0 +1,274 @@
+---
+title: "Go from Basics to Advanced — Part 4: Generics, Profiling, and Performance"
+description: "The final part of the Go series: type parameters and constraints, benchmarking with testing.B, reading pprof profiles, escape analysis, and tuning the garbage collector."
+date: "2026-05-03"
+tags: ["Go", "Performance", "Generics", "Series"]
+published: true
+---
+
+## The Advanced Part
+
+Three posts in, you can write a Go service that is correct and concurrent. This one is about the layer above that: writing reusable code without `interface{}`, and finding out where the time and memory actually go instead of guessing.
+
+Previous parts: [types and tooling](/blog/go-fundamentals-part-1-syntax-and-types), [structs and interfaces](/blog/go-part-2-structs-interfaces-and-package-design), [concurrency](/blog/go-part-3-concurrency-goroutines-channels-context).
+
+## Generics: Type Parameters
+
+Go 1.18 added type parameters. The syntax is square brackets after the function name:
+
+```go
+func Map[T, U any](in []T, f func(T) U) []U {
+    out := make([]U, 0, len(in))
+    for _, v := range in {
+        out = append(out, f(v))
+    }
+    return out
+}
+
+emails := Map(users, func(u User) string { return u.Email })
+```
+
+Type inference means callers usually write no type arguments at all. `any` is an alias for `interface{}`, and as a constraint it means "any type, no operations available" — you can copy it and pass it around, nothing else.
+
+## Constraints Are Type Sets
+
+To do anything with a type parameter, constrain it. A constraint is an interface, but interfaces used as constraints can also list *types*, not just methods:
+
+```go
+type Number interface {
+    ~int | ~int64 | ~float64
+}
+
+func Sum[T Number](vals []T) T {
+    var total T          // zero value of whatever T is
+    for _, v := range vals {
+        total += v       // legal: every type in the set supports +
+    }
+    return total
+}
+```
+
+The `~` matters. `~int` means "int, or any type whose underlying type is int", so a `type UserID int` still satisfies it. Without the tilde you exclude every named type, which is almost never what you want.
+
+Two constraints come predefined and cover most needs:
+
+```go
+// comparable — supports == and != ; required for map keys
+func Keys[K comparable, V any](m map[K]V) []K {
+    out := make([]K, 0, len(m))
+    for k := range m {
+        out = append(out, k)
+    }
+    return out
+}
+
+// cmp.Ordered — supports < <= >= > ; from the cmp package
+func Max[T cmp.Ordered](a, b T) T {
+    if a > b {
+        return a
+    }
+    return b
+}
+```
+
+Before writing either of those, check the standard library. Go 1.21 added generic `slices` and `maps` packages that already cover the common ground:
+
+```go
+slices.Contains(ids, "u_123")
+slices.SortFunc(users, func(a, b User) int {
+    return cmp.Compare(a.Email, b.Email)
+})
+idx, found := slices.BinarySearch(sorted, 42)
+keys := slices.Collect(maps.Keys(m))     // Go 1.23 iterators
+```
+
+### When Not to Use Generics
+
+Generics are for *containers and algorithms* — code where the logic is identical and only the type varies. They are not a substitute for interfaces.
+
+If the behavior differs per type, you want an interface with a method. If you find yourself writing a type switch inside a generic function, the generic was the wrong tool:
+
+```go
+// Wrong shape: behavior varies, so this belongs behind an interface
+func Render[T any](v T) string {
+    switch x := any(v).(type) {
+    case User:    return x.Email
+    case Invoice: return x.Number
+    }
+    return ""
+}
+```
+
+Also know the limits: methods cannot have their own type parameters, so `func (s *Store) Get[T any](...)` does not compile. Put the parameter on the type, or use a package-level function.
+
+And generic code is not automatically faster. The compiler shares one instantiation across pointer-shaped types and passes a dictionary at runtime, so a generic function over pointers can carry a small indirection cost that a concrete one does not. Which brings us to measurement.
+
+## Benchmarks Before Opinions
+
+The `testing` package benchmarks anything you can call. Put it in a `_test.go` file:
+
+```go
+func BenchmarkJoinBuilder(b *testing.B) {
+    parts := []string{"a", "b", "c", "d", "e"}
+
+    b.ReportAllocs()
+    for b.Loop() {          // Go 1.24+; older: for range b.N
+        var sb strings.Builder
+        for _, p := range parts {
+            sb.WriteString(p)
+        }
+        _ = sb.String()
+    }
+}
+```
+
+Run it and ask for memory numbers:
+
+```bash
+go test -bench=Join -benchmem -count=10 ./...
+```
+
+```text
+BenchmarkJoinBuilder-12   14231234   84.2 ns/op   48 B/op   2 allocs/op
+BenchmarkJoinConcat-12     4120391  291.0 ns/op  240 B/op   8 allocs/op
+```
+
+`allocs/op` is often the number to watch. In Go, allocation count correlates with GC pressure more directly than raw nanoseconds, and it is far more stable across machines.
+
+Use `-count=10` and compare with `benchstat` rather than eyeballing a single run — laptop noise routinely swings results 10%. A benchmark you ran once is a rumor.
+
+Two footguns: if the compiler can prove your result is unused it may optimize the whole body away, so assign to a package-level sink or use the result. And any expensive setup inside the loop is being measured too — hoist it out, or bracket it with `b.StopTimer()` and `b.StartTimer()`.
+
+## pprof: Where the Time Goes
+
+Benchmarks tell you which of two implementations wins. Profiles tell you what to look at in the first place.
+
+From a benchmark:
+
+```bash
+go test -bench=. -cpuprofile=cpu.out -memprofile=mem.out ./...
+go tool pprof -http=:8080 cpu.out
+```
+
+From a live service, mount the handlers — behind internal auth, never public:
+
+```go
+import _ "net/http/pprof"    // registers /debug/pprof/* on DefaultServeMux
+
+go func() {
+    log.Println(http.ListenAndServe("localhost:6060", nil))
+}()
+```
+
+Then pull profiles from the running process:
+
+```bash
+# 30-second CPU profile
+go tool pprof -http=:8080 http://localhost:6060/debug/pprof/profile?seconds=30
+
+# current heap (live objects)
+go tool pprof -http=:8080 http://localhost:6060/debug/pprof/heap
+
+# every goroutine's stack — the leak hunt
+curl -s http://localhost:6060/debug/pprof/goroutine?debug=2 | head -50
+```
+
+Reading them, in order of usefulness:
+
+- **Flame graph** — width is cumulative time. Scan for one wide, unexpected box.
+- **Top** — flat time per function. `runtime.mallocgc` high on this list means your problem is allocation, not computation.
+- **Peek / source view** — line-level attribution, once you have a suspect.
+
+The heap profile has two modes worth knowing. `inuse_space` shows what is live right now — that is your memory leak view. `alloc_space` shows everything ever allocated, including what the GC already collected — that is your churn view, and it is what you want when GC is eating CPU.
+
+## Escape Analysis and Allocation
+
+Go decides stack versus heap for you. Stack allocations are nearly free and need no GC; heap allocations cost both. You can see the compiler's decisions:
+
+```bash
+go build -gcflags='-m' ./... 2>&1 | grep escapes
+```
+
+```text
+./handler.go:24:13: &buf escapes to heap: flow: ~r0 = &buf
+./handler.go:31:22: ... argument does not escape
+```
+
+A value escapes when its lifetime cannot be proven to end with the function — it is returned as a pointer, stored in a longer-lived structure, or passed to something the compiler cannot see through. Common causes I hit in real code:
+
+- Returning a pointer to a local (usually fine, and often the right design)
+- Storing a value in an `interface{}` or passing it to `fmt.Println`, which boxes it
+- Closures capturing variables that outlive the call
+- A slice whose size is not known at compile time
+
+The practical wins are unglamorous: preallocate slices and maps with a capacity, reuse buffers on hot paths, pass small structs by value, and avoid `fmt.Sprintf` in tight loops when concatenation or `strconv` will do.
+
+When a hot path allocates the same short-lived buffer constantly, `sync.Pool` recycles them:
+
+```go
+var bufPool = sync.Pool{
+    New: func() any { return new(bytes.Buffer) },
+}
+
+func render(w io.Writer, v View) error {
+    buf := bufPool.Get().(*bytes.Buffer)
+    buf.Reset()
+    defer bufPool.Put(buf)
+
+    // ... build into buf ...
+    _, err := buf.WriteTo(w)
+    return err
+}
+```
+
+`sync.Pool` is a real optimization and a real footgun. Entries can vanish at any GC, so it is a cache, not a guarantee — and forgetting `Reset()` leaks one request's data into the next, which is a security bug, not a performance one. Profile first; only reach for it when allocation shows up in the profile.
+
+## GC Knobs
+
+Go's collector is concurrent and has few tunables, which is deliberate. Two matter:
+
+- **`GOGC`** (default 100) — collect when the heap has grown 100% since the last cycle. Raising it to 200 or 400 trades memory for fewer cycles; lowering it does the reverse.
+- **`GOMEMLIMIT`** — a soft memory ceiling. As the heap approaches it, the GC runs more aggressively instead of letting the container OOM.
+
+In a container, setting `GOMEMLIMIT` to roughly 90% of the memory limit is close to free insurance. Go does not read cgroup limits on its own, so without it the runtime happily grows past what your orchestrator will allow and the kernel kills the process:
+
+```yaml
+env:
+  - name: GOMEMLIMIT
+    value: "1800MiB"   # container limit 2Gi
+```
+
+`GOMAXPROCS` deserves a mention for the same reason: on a machine with 64 cores and a 2-core CPU quota, the runtime historically assumed 64, which produces scheduler thrash. Check what your Go version and container runtime negotiate, and set it explicitly if you are unsure.
+
+## Profile-Guided Optimization
+
+Since Go 1.21, the compiler can consume a real CPU profile and use it to guide inlining and layout decisions:
+
+```bash
+# capture from production, commit as default.pgo next to main
+curl -o cmd/api/default.pgo \
+  "http://localhost:6060/debug/pprof/profile?seconds=60"
+
+go build ./cmd/api     # picked up automatically
+```
+
+Typical reported gains are in the few-percent range — modest, but it is a build-time flag applied to code you did not change. Refresh the profile occasionally; a stale one optimizes for last year's traffic.
+
+## A Workflow That Holds Up
+
+The order I follow, and the order that keeps me from wasting a day:
+
+1. **Write the clear version.** Idiomatic, boring, correct.
+2. **Measure the real system.** A pprof profile from production or a load test, not intuition.
+3. **Find the widest box.** Optimize the thing that actually dominates.
+4. **Benchmark the fix in isolation** with `-benchmem` and `-count=10`.
+5. **Verify in production.** Microbenchmarks lie about cache behavior and contention.
+6. **Stop when it is fast enough.** Every optimization is complexity someone maintains.
+
+Most Go performance problems I have chased were not the language at all — an N+1 query, a missing index, a lock held across a network call, or a JSON payload ten times bigger than needed. Profile before you rewrite.
+
+## Series Wrap-Up
+
+Four posts: the [language](/blog/go-fundamentals-part-1-syntax-and-types), the [design](/blog/go-part-2-structs-interfaces-and-package-design), the [concurrency](/blog/go-part-3-concurrency-goroutines-channels-context), and the runtime. The thread running through all of it is that Go rewards being explicit — about errors, about who owns a goroutine, about what escapes to the heap — and gives you tools to check every one of those claims.
+
+If you build something with this, I would genuinely like to see it. Ping me on [X](https://x.com/swimshahriar).

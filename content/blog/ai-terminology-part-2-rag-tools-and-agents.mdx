@@ -1,0 +1,220 @@
+---
+title: "AI Terminology for Developers — Part 2: RAG, Tools, and Agents"
+description: "The system-level vocabulary: retrieval pipelines, chunking and reranking, tool use, structured outputs, MCP, what actually makes something an agent, and when fine-tuning beats prompting."
+date: "2026-08-02"
+tags: ["AI", "RAG", "Agents", "Series"]
+published: true
+---
+
+## From One Call to a System
+
+[Part 1](/blog/ai-terminology-part-1-tokens-context-and-embeddings) covered a single model call: tokens, context, sampling, caching. Almost nothing shipped in production is a single model call. This part is the vocabulary of what gets built around it.
+
+The organizing question is simple. A model knows only what it was trained on and what you put in the prompt, and it can only emit text. Everything below exists to fix one of those two limits.
+
+## RAG — Retrieval-Augmented Generation
+
+**RAG** means fetching relevant information at query time and putting it in the prompt before asking the model to answer.
+
+That is the whole idea, and it solves several problems at once: knowledge newer than the training cutoff, private data the model never saw, citations you can verify, and updates that need no retraining — you change a document, and the next query sees it.
+
+The minimal pipeline:
+
+```text
+Ingest (once, or on change)
+  documents → chunk → embed → store in a vector index
+
+Query (per request)
+  question → embed → search index → retrieve top-K
+           → assemble prompt with the retrieved text
+           → generate answer, grounded in that text
+```
+
+The tutorial version of this is twenty lines. The production version is where the terms below come from — because naive RAG works impressively in a demo and disappoints on a real corpus.
+
+### Chunking
+
+Documents get split into pieces small enough to retrieve usefully. **Chunk size** is the length; **overlap** is how much adjacent chunks share so a sentence spanning a boundary is not lost from both.
+
+The trade-off is real and unavoidable. Small chunks retrieve precisely but arrive without context — a paragraph that says "this is not recommended" without saying what "this" is. Large chunks carry context but dilute the signal, so the embedding averages several topics and matches nothing well.
+
+What has worked better for me than tuning a number: **split on structure, not on character count.** Headings, sections, function boundaries, list items. A chunk that corresponds to one semantic unit beats a 512-character window every time. Then attach metadata — source, title, section, date — because that is what makes filtering and citation possible later.
+
+### Vector Databases and Search
+
+A **vector database** stores embeddings and answers nearest-neighbor queries fast. At scale it uses **ANN** — approximate nearest neighbor — trading a little recall for a lot of speed, because exact search over millions of vectors is too slow.
+
+**Top-K** is how many results you retrieve. Too few and you miss the answer; too many and you spend tokens on noise and dilute the model's attention. Ten is a reasonable starting point, and it is a number to tune against measurements, not intuition.
+
+### Hybrid Search and Reranking
+
+This is the step that separates a RAG demo from a RAG product.
+
+Semantic search fails in a specific, predictable way: it is bad at exact matches. Error codes, product SKUs, function names, version numbers, unusual proper nouns — a vector search for `ERR_CONN_4021` may return paragraphs about connection errors generally and miss the one page documenting that exact code.
+
+**Hybrid search** runs both keyword search (typically BM25, the classic lexical ranking function) and vector search, then merges the result lists. Keyword search nails exact tokens; vector search catches paraphrases. Together they cover each other's blind spots.
+
+**Reranking** then adds a second, more expensive pass. A **cross-encoder** reranker looks at the query and each candidate document *together* and scores relevance directly, rather than comparing two independently-computed vectors. It is far too slow to run over a whole corpus and ideal over 50 candidates. Retrieve broadly and cheaply, rerank precisely, pass the top few to the model.
+
+If your RAG system underperforms and you have not added these two things yet, add them before touching anything else.
+
+### Evaluating Retrieval
+
+You cannot improve what you do not measure, and RAG has two failure surfaces that need separate measurement:
+
+- **Retrieval quality** — did the right chunk make it into the prompt? Measured with recall at K (was it in the top K?) and precision (how much of what you retrieved was useful).
+- **Generation quality** — given the right chunk, did the model use it correctly? Measured by **faithfulness** (is every claim supported by the retrieved text?) and answer relevance.
+
+Keeping these separate matters because the fixes are opposite. A bad answer from a good retrieval is a prompting problem. A bad answer from a failed retrieval is a chunking, search, or reranking problem. Conflating them means guessing.
+
+## Structured Outputs
+
+Getting reliable JSON out of a model used to be an art of hacks: begging in the prompt, prefilling an opening brace, stop sequences, regex extraction, retry-on-parse-failure loops.
+
+**Structured outputs** replaced all of it. You supply a JSON Schema and the provider constrains generation so the output validates. Not "usually parses" — validates.
+
+```ts
+// Conceptually: schema in, guaranteed-shape object out
+const schema = {
+  type: "object",
+  properties: {
+    sentiment: { type: "string", enum: ["positive", "neutral", "negative"] },
+    topics: { type: "array", items: { type: "string" } },
+    urgent: { type: "boolean" },
+  },
+  required: ["sentiment", "topics", "urgent"],
+  additionalProperties: false,
+};
+```
+
+If you maintain code with a JSON-repair helper, a parse-retry loop, or an assistant-turn prefill forcing a `{`, that code is obsolete. Some newer models reject prefills outright, so it is not merely redundant — it breaks.
+
+Two caveats. Schema support is a subset of full JSON Schema — recursion and numeric range constraints are commonly unsupported, so validate those yourself. And a refusal or a hit output limit can still produce something that does not match, so check the stop reason before trusting the shape.
+
+## Tool Use / Function Calling
+
+**Tool use** (also called **function calling**) lets a model request that your code run something. It is how a text generator gets to act on the world.
+
+The loop is the whole concept:
+
+1. You describe available tools — name, description, input schema.
+2. The model replies with a **tool call**: this tool, these arguments.
+3. **Your code executes it.** The model does not run anything.
+4. You send the result back as a **tool result**.
+5. The model continues, using the result — or calls another tool.
+
+Repeat until it stops calling tools and answers. The important framing: **the model only ever produces a request**. Everything about what actually happens — permissions, validation, rate limits, whether a delete really deletes — is yours.
+
+Terms that come up:
+
+- **Parallel tool use** — several tool calls in one turn. Execute them concurrently and return all the results together in a single message; splitting them across messages teaches the model to stop doing it.
+- **Server-side tools** — tools the provider runs (web search, code execution in a sandbox). You declare them; there is no execution loop on your side.
+- **Client-side tools** — anything you implement. Your database, your API, your filesystem.
+
+The single highest-leverage thing you control here is **tool descriptions**. They are the only thing the model has to decide when and how to call. Under-description is the common failure, not over-description: state what the tool does, *when to use it and when not to*, what each parameter means, and what it returns. A vague one-liner produces a tool the model uses at the wrong times with the wrong arguments, and no amount of system-prompt text fixes a bad contract.
+
+Then keep the set small and bounded. Two overlapping tools with fuzzy boundaries produce worse behavior than one clear tool.
+
+## MCP — Model Context Protocol
+
+**MCP** is an open protocol for exposing tools and data to models over a standard interface. Instead of every application writing a bespoke integration for every service, a service ships an MCP server once and any MCP-capable client can use it.
+
+The value is combinatorial: it turns an N-times-M integration problem into N plus M. If you have built the same integration three times for three different AI applications, that is the problem it addresses. Most major AI clients now speak it, and the ecosystem of servers is where most of the practical value sits.
+
+## Agents
+
+The most abused word in the space. A usable definition:
+
+**An agent is a system where the model decides what to do next, in a loop, using tools, until the goal is met.**
+
+The distinction that matters in practice is against a **workflow**, where *you* wrote the control flow and the model fills in steps. "Summarize this, then classify it, then route it" is a workflow — deterministic, testable, debuggable. "Investigate this failing test and fix it" is agentic — the model decides how many files to read, which commands to run, and when it is done.
+
+Three tiers, and the right answer is usually the simplest one that works:
+
+| Tier | Control flow | Use when |
+|---|---|---|
+| **Single call** | None | Classification, extraction, summarization, Q&A |
+| **Workflow** | Yours, in code | Multi-step, but the steps are known in advance |
+| **Agent** | The model's | Open-ended, can't be fully specified up front |
+
+Agents cost more, take longer, and fail in more interesting ways. Reach for one when the task genuinely cannot be specified in advance — and check that errors are recoverable, because a loop that acts autonomously will eventually act wrongly.
+
+Vocabulary you will meet:
+
+- **Agent loop** (or **harness**) — the code driving the cycle: call model, execute tools, feed results back, repeat, with a stopping condition.
+- **Multi-agent / subagents** — one coordinator delegating sub-tasks to other model instances, each with its own fresh context. Genuinely useful when work fans out over many independent items, or when one sub-task would fill the coordinator's context with reading. It is also the easiest way to multiply cost, because every subagent re-establishes its own context and reports back.
+- **Context engineering** — deciding what occupies the window at each step. This has quietly become the main skill in agent building: what to keep, what to summarize, what to drop, what to fetch on demand.
+- **Compaction** — summarizing earlier conversation to stay inside the window on a long run.
+- **Memory** — state that survives across sessions, usually files or a store the agent reads and writes. Models are noticeably better at long tasks when they have somewhere to write down what they learned.
+- **Human-in-the-loop** — gating actions behind approval. The right pattern for anything hard to reverse, and best enforced in your harness rather than requested in a prompt.
+
+## Fine-Tuning and Its Alternatives
+
+**Fine-tuning** continues training a pretrained model on your own examples, adjusting its weights. **LoRA** and other **parameter-efficient** methods train a small set of additional weights instead of all of them, which is dramatically cheaper and what most "fine-tuning" in practice now means.
+
+The question worth asking first is what fine-tuning is actually for. It teaches **form**: a house style, a rigid output format, a domain's phrasing conventions, or a smaller model imitating a larger one's behavior on a narrow task (**distillation**).
+
+It is a poor tool for teaching **facts**. Fine-tuning on your documentation does not make a model reliably know your documentation — it makes it sound like your documentation, which is worse, because now it hallucinates in your voice. Facts belong in the prompt, via retrieval.
+
+The ladder I work up, stopping as soon as quality is good enough:
+
+1. **Prompting** — instructions, examples, output format. Minutes to iterate.
+2. **Retrieval** — put the right facts in the window.
+3. **Tools** — let it look things up and act.
+4. **Fine-tuning** — only when style or format consistency is still short, and you have a few hundred to a few thousand good examples.
+
+Most teams that reached for fine-tuning first would have gotten there faster with a better prompt and real retrieval. Fine-tuning also freezes you to a model version, and the next generation of base model routinely beats a fine-tune of the last one.
+
+## Evals
+
+An **eval** is a test suite for model behavior: a set of inputs with expected properties, run automatically, scored.
+
+This is the thing teams skip and later regret, because without evals every prompt change is a vibe check. You cannot tell whether that new instruction helped, and you cannot tell whether swapping models is safe.
+
+What works:
+
+- **Start small and real.** Twenty cases drawn from actual failures beat two thousand synthetic ones.
+- **Score mechanically where you can.** Exact match, schema validation, does-the-code-run, is-the-cited-source-real. Cheap, deterministic, trustworthy.
+- **Use an LLM-as-judge only for the genuinely subjective part** — tone, helpfulness, faithfulness to a source. Give the judge a rubric and specific criteria, not "is this good?"
+- **Track cost and latency alongside quality.** A change that improves accuracy two points and triples spend is a decision, not an improvement.
+
+Every failure that reaches production should become an eval case. That is how the suite gets good — it grows out of what actually broke.
+
+## Guardrails
+
+**Guardrails** are the checks around a model call: input filtering, output validation, refusal handling, rate limits, blocked-topic detection.
+
+The framing I have found useful is to sort them by where enforcement lives. Anything you can enforce in code — schema validation, allowlists, a permission gate before a destructive tool runs, a spend cap — should be enforced in code, not requested in a prompt. Prompts are guidance; they are not a security boundary. Reserve prompt-level rules for what code genuinely cannot check.
+
+And treat the [prompt injection](/blog/ai-terminology-part-1-tokens-context-and-embeddings) problem from Part 1 as an architectural constraint rather than a filtering problem: the least capability that accomplishes the task is the actual defense.
+
+## Quick Reference
+
+| Term | One line |
+|---|---|
+| RAG | Fetch relevant text at query time, put it in the prompt |
+| Chunking | Splitting documents into retrievable pieces |
+| Vector database | Stores embeddings, answers nearest-neighbor queries |
+| ANN | Approximate nearest neighbor — fast, slightly lossy search |
+| Top-K | How many results you retrieve |
+| Hybrid search | Keyword plus vector, merged; covers exact-match gaps |
+| Reranking | Expensive precise second pass over cheap candidates |
+| Faithfulness | Is every claim supported by the retrieved source? |
+| Structured outputs | Schema-constrained generation; guaranteed valid shape |
+| Tool use | The model requests, your code executes, you return the result |
+| MCP | Open protocol for exposing tools and data to models |
+| Workflow | Multi-step, control flow written by you |
+| Agent | Multi-step, control flow decided by the model |
+| Context engineering | Choosing what occupies the window at each step |
+| Compaction | Summarizing history to stay inside the window |
+| Fine-tuning | Adjust weights to teach form; not the way to teach facts |
+| LoRA | Cheap parameter-efficient fine-tuning |
+| Distillation | Training a small model to imitate a larger one |
+| Eval | Automated test suite for model behavior |
+| Guardrails | Checks around the call; enforce in code where possible |
+
+## Series Wrap-Up
+
+Two posts: [the vocabulary of one call](/blog/ai-terminology-part-1-tokens-context-and-embeddings), and the vocabulary of a system. The thread through both is that almost none of this is machine learning — it is context management, cost accounting, and interface design around a component with unusual failure modes. Which is ordinary engineering, done against an unfamiliar constraint.
+
+Building something with this? I would like to hear about it — [X](https://x.com/swimshahriar).

@@ -1,0 +1,307 @@
+---
+title: "Go from Basics to Advanced — Part 3: Goroutines, Channels, and Context"
+description: "Part three of the Go series: how goroutines actually schedule, when to use channels versus mutexes, worker pools, select, and cancellation that does not leak."
+date: "2026-04-12"
+tags: ["Go", "Concurrency", "Backend", "Series"]
+published: true
+---
+
+## The Part Everyone Skips To
+
+Concurrency is why most people try Go. It is also where most Go bugs live, because starting a goroutine is one keyword and stopping one correctly is a design decision.
+
+[Part 1](/blog/go-fundamentals-part-1-syntax-and-types) covered the language, [Part 2](/blog/go-part-2-structs-interfaces-and-package-design) covered structure. This part covers the runtime.
+
+## Goroutines Are Cheap, Not Free
+
+A goroutine is a function scheduled by the Go runtime rather than the OS:
+
+```go
+go handleRequest(req)   // returns immediately
+```
+
+They start with a small stack of a couple of kilobytes that grows on demand, which is why a Go server can hold hundreds of thousands of them where an OS-thread-per-request model would fall over. The runtime multiplexes them onto a pool of OS threads sized by `GOMAXPROCS`, and it hands off automatically when one blocks on I/O.
+
+Cheap is not free, though. Two rules:
+
+**Never start a goroutine without knowing how it ends.** A goroutine blocked forever on a channel nobody writes to is a leak — its stack, and everything it references, stays reachable for the life of the process. Leaks like this are how a service with flat traffic grows its memory all day.
+
+**`main` returning kills everything.** No goroutine gets to finish. If you need to wait, wait explicitly.
+
+## WaitGroup: Wait for a Known Set
+
+When you fan out a fixed amount of work and need all of it done:
+
+```go
+var wg sync.WaitGroup
+
+for _, url := range urls {
+    wg.Add(1)
+    go func() {
+        defer wg.Done()
+        fetch(url)
+    }()
+}
+
+wg.Wait()   // blocks until every Done has fired
+```
+
+`Add` before the `go` statement, always — calling it inside the goroutine races with `Wait`. And `Done` in a `defer`, so a panic or early return still decrements.
+
+`WaitGroup` gives you no results and no errors. For that, reach for `errgroup` from `golang.org/x/sync`, which collects the first error and cancels the rest:
+
+```go
+g, ctx := errgroup.WithContext(ctx)
+g.SetLimit(8)                       // cap concurrency
+
+results := make([]Result, len(urls))
+for i, url := range urls {
+    g.Go(func() error {
+        r, err := fetchCtx(ctx, url)
+        if err != nil {
+            return err              // cancels ctx for the others
+        }
+        results[i] = r             // distinct index per goroutine: no lock needed
+        return nil
+    })
+}
+
+if err := g.Wait(); err != nil {
+    return nil, fmt.Errorf("fetch batch: %w", err)
+}
+```
+
+Writing to `results[i]` from many goroutines is safe here because each writes a different element, and `g.Wait()` is the synchronization point before anything reads them. Sharing a slice by *appending* from multiple goroutines is not safe — that mutates one header.
+
+## Channels: Typed Pipes with Ownership
+
+A channel passes values between goroutines and synchronizes them at the same time:
+
+```go
+ch := make(chan int)      // unbuffered: send blocks until a receiver is ready
+buf := make(chan int, 10) // buffered: send blocks only when full
+
+ch <- 42                  // send
+v := <-ch                 // receive
+v, ok := <-ch             // ok is false once the channel is closed and drained
+```
+
+The mechanics that matter in practice:
+
+- **Unbuffered channels are a handoff.** Sender and receiver rendezvous. That is a synchronization guarantee, not just data transfer.
+- **Buffering decouples timing, it does not remove backpressure.** A full buffer blocks. Choosing a size is choosing how much lag you tolerate.
+- **Only the sender closes,** and only when no more sends will happen. Closing lets receivers finish a `range`; sending on a closed channel panics.
+- **A `nil` channel blocks forever.** Occasionally useful in `select` to disable a case, usually a bug.
+
+Ranging over a channel reads until it is closed:
+
+```go
+func producer(out chan<- int) {
+    defer close(out)          // the sender owns the close
+    for i := range 5 {        // Go 1.22+ range-over-int
+        out <- i
+    }
+}
+
+func main() {
+    ch := make(chan int)
+    go producer(ch)
+    for v := range ch {       // exits when producer closes
+        fmt.Println(v)
+    }
+}
+```
+
+Note the directional type `chan<- int` in the signature. It documents intent and lets the compiler enforce it — the producer cannot accidentally receive.
+
+## select
+
+`select` waits on several channel operations and proceeds with whichever is ready first. If more than one is ready, it picks pseudo-randomly:
+
+```go
+select {
+case v := <-results:
+    handle(v)
+case err := <-errs:
+    return err
+case <-ctx.Done():
+    return ctx.Err()
+case <-time.After(5 * time.Second):
+    return errors.New("timeout")
+}
+```
+
+Add `default` and it becomes non-blocking — useful for a "drop if the queue is full" path:
+
+```go
+select {
+case metrics <- sample:
+    // enqueued
+default:
+    dropped.Add(1)   // never block the hot path on telemetry
+}
+```
+
+One trap in that snippet above: `time.After` allocates a timer that lives until it fires. Inside a hot loop, use `time.NewTimer` and `Stop` it, or a shared `time.Ticker`.
+
+## Worker Pools
+
+Unbounded goroutines are a denial-of-service on your own database. The standard shape is a fixed set of workers reading from a jobs channel:
+
+```go
+func Process(ctx context.Context, jobs []Job, workers int) []Result {
+    jobCh := make(chan Job)
+    resCh := make(chan Result, len(jobs))
+
+    var wg sync.WaitGroup
+    for range workers {
+        wg.Add(1)
+        go func() {
+            defer wg.Done()
+            for job := range jobCh {          // exits when jobCh closes
+                select {
+                case resCh <- do(job):
+                case <-ctx.Done():
+                    return
+                }
+            }
+        }()
+    }
+
+    // Feed jobs, then close so workers can drain and exit.
+    go func() {
+        defer close(jobCh)
+        for _, j := range jobs {
+            select {
+            case jobCh <- j:
+            case <-ctx.Done():
+                return
+            }
+        }
+    }()
+
+    wg.Wait()
+    close(resCh)
+
+    out := make([]Result, 0, len(jobs))
+    for r := range resCh {
+        out = append(out, r)
+    }
+    return out
+}
+```
+
+Every send and receive here is guarded by `ctx.Done()`. That is what makes it cancellable rather than merely concurrent. `resCh` is buffered to `len(jobs)` so no worker blocks waiting for the collector.
+
+## Channels or Mutex?
+
+Both are correct tools; the split is about what you are protecting.
+
+| Use a channel when | Use a mutex when |
+|---|---|
+| Transferring ownership of data | Protecting shared in-memory state |
+| Coordinating stages of a pipeline | Guarding a cache or counter map |
+| Signaling completion or cancellation | The critical section is short |
+| Distributing work to N workers | Contention is low and latency matters |
+
+For a struct with a map inside, a mutex is simpler and faster than routing every read through a goroutine:
+
+```go
+type Cache struct {
+    mu sync.RWMutex
+    m  map[string]string
+}
+
+func (c *Cache) Get(k string) (string, bool) {
+    c.mu.RLock()
+    defer c.mu.RUnlock()
+    v, ok := c.m[k]
+    return v, ok
+}
+
+func (c *Cache) Set(k, v string) {
+    c.mu.Lock()
+    defer c.mu.Unlock()
+    c.m[k] = v
+}
+```
+
+`RWMutex` lets readers run concurrently, which pays off when reads dominate. For a plain counter, skip locks entirely and use `sync/atomic` — `atomic.Int64` has a useful zero value and `Add`/`Load` methods.
+
+## Context: Cancellation That Propagates
+
+`context.Context` carries a deadline, a cancellation signal, and request-scoped values across API boundaries. The convention is rigid on purpose: it is the first parameter, named `ctx`, and it is never stored in a struct.
+
+```go
+func (s *Service) Fetch(ctx context.Context, id string) (*Doc, error) {
+    ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+    defer cancel()                       // always, even on the success path
+
+    row := s.db.QueryRowContext(ctx, "SELECT ... WHERE id = $1", id)
+    // ...
+}
+```
+
+Things worth knowing:
+
+- **Always call `cancel`.** Even when the operation finished. Skipping it leaks the timer and the child context until the parent is done.
+- **Cancellation is cooperative.** Nothing is killed. Your code has to observe `ctx.Done()` or pass `ctx` to something that does. Every well-behaved library takes one.
+- **Check `ctx.Err()` to tell why:** `context.Canceled` (caller went away) versus `context.DeadlineExceeded` (you ran out of time). Those are different alerts.
+- **`context.Value` is for request-scoped metadata** — trace IDs, auth claims. Not for passing dependencies. Use an unexported key type so nobody collides with your key.
+
+In an HTTP server you get this for free: `r.Context()` is cancelled when the client disconnects. Passing it down means an abandoned request stops doing database work instead of finishing an answer nobody will read.
+
+## Graceful Shutdown
+
+The payoff for wiring context through everything:
+
+```go
+func main() {
+    srv := &http.Server{Addr: ":8080", Handler: routes()}
+
+    // SIGINT/SIGTERM cancels this context.
+    ctx, stop := signal.NotifyContext(context.Background(),
+        os.Interrupt, syscall.SIGTERM)
+    defer stop()
+
+    go func() {
+        if err := srv.ListenAndServe(); err != nil &&
+            !errors.Is(err, http.ErrServerClosed) {
+            log.Fatalf("listen: %v", err)
+        }
+    }()
+
+    <-ctx.Done()
+    log.Println("shutting down")
+
+    shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+    defer cancel()
+
+    if err := srv.Shutdown(shutdownCtx); err != nil {
+        log.Printf("forced shutdown: %v", err)
+    }
+}
+```
+
+`Shutdown` stops accepting new connections and waits for in-flight requests, bounded by that 15-second budget. On a rolling deploy this is the difference between a clean release and a burst of 502s.
+
+## Finding Bugs You Cannot See
+
+Concurrency bugs do not reproduce on demand, so lean on tooling:
+
+```bash
+go test ./... -race           # detects unsynchronized memory access
+go test ./... -race -count=5  # repeat to shake out timing-dependent races
+```
+
+The race detector instruments memory access at runtime, so it only flags races on code paths your tests actually execute — which is an argument for testing concurrent paths deliberately, not just the happy path.
+
+For a live process, `net/http/pprof` exposes a goroutine dump. A goroutine count that climbs and never comes back down is your leak, and the stack trace names the line it is parked on.
+
+## Wrapping Up
+
+The mental model that keeps Go concurrency manageable: every goroutine has an owner who knows how it terminates, every blocking operation has a cancellation path, and shared state is either passed through a channel or guarded by a lock — not both, and never neither.
+
+[Part 4](/blog/go-part-4-generics-profiling-and-performance) closes the series with generics, the memory model, and how to profile a Go binary that is fast enough on your laptop and not in production.
+
+Got a concurrency pattern you swear by? Tell me on [X](https://x.com/swimshahriar).
