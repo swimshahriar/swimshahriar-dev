@@ -1,0 +1,257 @@
+---
+title: "Go from Basics to Advanced — Part 2: Structs, Interfaces, and Package Design"
+description: "Part two of the Go series: value vs pointer receivers, embedding, small interfaces defined by the consumer, and how to lay out a package so it stays testable."
+date: "2026-03-24"
+tags: ["Go", "Architecture", "Interfaces", "Series"]
+published: true
+---
+
+## Where We Left Off
+
+[Part 1](/blog/go-fundamentals-part-1-syntax-and-types) covered the mechanics: types, zero values, slices, errors, tooling. This part is about the decisions — the ones that determine whether a Go package is pleasant to use a year later.
+
+Go has no classes, no inheritance, and no constructors. What it has instead is structs, methods, and structural interfaces. That is a smaller toolkit than you may be used to, and it pushes you toward composition whether you planned to or not.
+
+## Structs and Composite Literals
+
+A struct is a typed collection of fields. Always use field names in literals so adding a field does not break every call site:
+
+```go
+type User struct {
+    ID        string
+    Email     string
+    CreatedAt time.Time
+}
+
+u := User{
+    ID:    "u_123",
+    Email: "hi@swimshahriar.dev",
+}
+// CreatedAt is the zero time — a valid, usable value
+```
+
+When construction needs validation or defaults, write a `New` function that returns the type and an error. This is the closest thing Go has to a constructor, and it is just a convention:
+
+```go
+func NewUser(email string) (*User, error) {
+    if !strings.Contains(email, "@") {
+        return nil, &ValidationError{Field: "email", Reason: "invalid format"}
+    }
+    return &User{
+        ID:        uuid.NewString(),
+        Email:     email,
+        CreatedAt: time.Now(),
+    }, nil
+}
+```
+
+Return `*User` when the type has identity or is mutated; return `User` when it is a small immutable value. Do not return an interface from a constructor just because you might mock it later — return the concrete type and let the *caller* decide what interface it needs.
+
+## Value vs Pointer Receivers
+
+This is the first real decision Go asks of you:
+
+```go
+type Rect struct{ W, H float64 }
+
+// Value receiver — gets a copy, cannot mutate the original
+func (r Rect) Area() float64 { return r.W * r.H }
+
+// Pointer receiver — can mutate, no copy
+func (r *Rect) Scale(f float64) { r.W *= f; r.H *= f }
+```
+
+The rules I follow:
+
+- **Use a pointer receiver if the method mutates.** Non-negotiable; a value receiver mutates a copy and silently does nothing.
+- **Use a pointer receiver if the struct is large,** or contains a `sync.Mutex`, or anything else that must not be copied.
+- **Be consistent per type.** Mixing receivers on one type is confusing and interacts badly with method sets.
+
+That last point matters more than it looks. Only `*T` satisfies an interface whose method set includes pointer-receiver methods. This is the error people hit on day three:
+
+```go
+type Scaler interface{ Scale(float64) }
+
+var s Scaler = Rect{}   // compile error: Rect does not implement Scaler
+var s Scaler = &Rect{}  // fine
+```
+
+## Interfaces Belong to the Consumer
+
+In most languages, an interface is declared next to its implementation, and the implementation says `implements Foo`. Go inverts this. Satisfaction is structural — if the methods match, the type implements the interface, with no declaration anywhere.
+
+The practical consequence is that **interfaces should be defined in the package that consumes them, not the package that implements them**. Your storage package exposes a concrete `*PostgresStore`. Your service package declares the two methods it actually needs:
+
+```go
+// package service — the consumer defines the contract
+type UserStore interface {
+    FindByID(ctx context.Context, id string) (*User, error)
+    Save(ctx context.Context, u *User) error
+}
+
+type Service struct {
+    store UserStore
+}
+
+func NewService(store UserStore) *Service {
+    return &Service{store: store}
+}
+```
+
+`*PostgresStore` has thirty methods; the service depends on two. Tests need a fake with two. And the storage package does not import the service package, so there is no dependency cycle and no interface nobody uses.
+
+The other half of the rule: **keep interfaces small**. The standard library is the model here — `io.Reader` and `io.Writer` have one method each, and half the ecosystem plugs into them. An interface with eight methods is a class in disguise.
+
+```go
+// The whole contract behind every stream in Go
+type Reader interface {
+    Read(p []byte) (n int, err error)
+}
+```
+
+## Accept Interfaces, Return Structs
+
+The guideline you will see repeated, and it holds up:
+
+```go
+// Good: flexible input, concrete and inspectable output
+func Compress(r io.Reader) (*Archive, error)
+
+// Worse: caller must have an *os.File, and gets back something opaque
+func Compress(f *os.File) (Archiver, error)
+```
+
+Taking an `io.Reader` means the function works with files, HTTP bodies, `strings.Reader`, and a `bytes.Buffer` in a test. Returning `*Archive` means the caller can reach a field you add next month without an interface change.
+
+## Embedding Is Not Inheritance
+
+Embedding promotes the embedded type's fields and methods to the outer type:
+
+```go
+type Logger struct{ prefix string }
+
+func (l Logger) Log(msg string) {
+    fmt.Printf("[%s] %s\n", l.prefix, msg)
+}
+
+type Server struct {
+    Logger              // embedded, no field name
+    addr string
+}
+
+s := Server{Logger: Logger{prefix: "api"}, addr: ":8080"}
+s.Log("started")        // promoted method
+```
+
+What it is *not*: there is no virtual dispatch. If `Logger.Log` calls another method, it calls `Logger`'s version, never an override on `Server`. Embedding is sugar for delegation, and it is easy to overuse. Two places where it genuinely earns its keep:
+
+**Extending an interface implementation** without reimplementing everything:
+
+```go
+type countingWriter struct {
+    io.Writer      // embedded interface
+    n int64
+}
+
+func (c *countingWriter) Write(p []byte) (int, error) {
+    n, err := c.Writer.Write(p)
+    c.n += int64(n)
+    return n, err
+}
+```
+
+**Satisfying a big interface in a test** by embedding it and implementing only the methods the test exercises. Anything else panics with a nil-pointer dereference, which is exactly the signal you want.
+
+## Struct Tags
+
+Tags are string metadata read at runtime via reflection. Almost every serialization library uses them:
+
+```go
+type User struct {
+    ID        string    `json:"id"`
+    Email     string    `json:"email"`
+    Password  string    `json:"-"`                  // never serialized
+    Nickname  string    `json:"nickname,omitempty"` // dropped when empty
+    CreatedAt time.Time `json:"created_at"`
+}
+```
+
+Tags are unchecked strings, so a typo like `josn:"id"` compiles fine and silently falls back to the field name. `go vet` catches malformed tags, which is one more reason it belongs in CI.
+
+## Laying Out a Package
+
+Two failure modes I have cleaned up more than once: a `utils` package that becomes a junk drawer, and a directory-per-layer split so fine-grained that every feature touches nine files.
+
+What holds up:
+
+```text
+cmd/api/main.go        — wiring only: config, dependencies, start
+internal/user/         — user domain: types, service, its own store interface
+internal/billing/      — billing domain
+internal/platform/db/  — shared infrastructure
+```
+
+The principles behind that shape:
+
+- **Name packages for what they provide, not what they contain.** `user`, not `models`. The import path is part of every call site: `user.Service` reads well, `models.UserModel` stammers.
+- **Use `internal/` aggressively.** The compiler refuses imports of `internal/...` from outside your module. It is a real access modifier, and it means refactoring inside it never breaks anyone.
+- **Export the minimum.** An unexported type with exported methods is often the right answer.
+- **Keep `main` thin.** Config parsing, dependency construction, graceful shutdown. All logic lives in importable, testable packages.
+
+## Tests Live Next Door
+
+Go tests sit in the same directory as the code, named `_test.go`. That gives you access to unexported identifiers, and because interfaces are small, most fakes are a few lines:
+
+```go
+type fakeStore struct {
+    users map[string]*User
+}
+
+func (f *fakeStore) FindByID(_ context.Context, id string) (*User, error) {
+    u, ok := f.users[id]
+    if !ok {
+        return nil, ErrNotFound
+    }
+    return u, nil
+}
+
+func (f *fakeStore) Save(_ context.Context, u *User) error {
+    f.users[u.ID] = u
+    return nil
+}
+```
+
+Table-driven tests are the house style, and `t.Run` gives each case its own name in the output:
+
+```go
+func TestNewUser(t *testing.T) {
+    tests := []struct {
+        name    string
+        email   string
+        wantErr bool
+    }{
+        {"valid", "a@b.com", false},
+        {"missing at sign", "nope", true},
+        {"empty", "", true},
+    }
+
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            _, err := NewUser(tt.email)
+            if (err != nil) != tt.wantErr {
+                t.Fatalf("NewUser(%q) error = %v, wantErr %v", tt.email, err, tt.wantErr)
+            }
+        })
+    }
+}
+```
+
+Adding a case is one line, which is the whole point — cheap tests get written.
+
+## Wrapping Up
+
+Go's type system is deliberately thin, so the leverage is in composition: small interfaces declared where they are used, structs that are useful at their zero value, embedding for delegation instead of hierarchy, and packages named after what they do.
+
+[Part 3](/blog/go-part-3-concurrency-goroutines-channels-context) is the one people come to Go for: goroutines, channels, `select`, and the context patterns that keep a concurrent program from leaking.
+
+Disagree with any of this? I would like to hear it — [X](https://x.com/swimshahriar).

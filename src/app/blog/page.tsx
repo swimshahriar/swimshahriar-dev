@@ -63,7 +63,7 @@ export default function BlogPage() {
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
-                    <h2 className="text-lg font-semibold group-hover:text-primary transition-colors mb-2 truncate">
+                    <h2 className="text-lg font-semibold group-hover:text-primary transition-colors mb-2 line-clamp-2">
                       {post.title}
                     </h2>
                     <p className="text-sm text-muted-foreground line-clamp-2 mb-3">

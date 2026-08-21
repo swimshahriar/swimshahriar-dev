@@ -1,0 +1,265 @@
+---
+title: "Go from Basics to Advanced — Part 1: Syntax, Types, and the Toolchain"
+description: "The first part of a four-part Go series: the type system, zero values, slices and maps, error handling, and the toolchain you get for free with every Go install."
+date: "2026-03-09"
+tags: ["Go", "Backend", "Fundamentals", "Series"]
+published: true
+---
+
+## Why This Series
+
+I write Go every week, and the thing I keep telling people is that Go is small on purpose. You can read the whole spec in an afternoon. What takes longer is learning the *idioms* — the handful of patterns that separate Go that compiles from Go you want to maintain.
+
+This is a four-part series:
+
+1. **Part 1 (this post)** — syntax, types, errors, tooling
+2. **Part 2** — structs, methods, interfaces, and package design
+3. **Part 3** — goroutines, channels, and context
+4. **Part 4** — generics, profiling, and the memory model
+
+## Hello, Module
+
+Everything starts with a module. There is no separate package manager to install:
+
+```bash
+mkdir hello && cd hello
+go mod init github.com/swimshahriar/hello
+```
+
+That writes a `go.mod` file which is your dependency manifest, lockfile input, and language-version declaration all at once:
+
+```go
+module github.com/swimshahriar/hello
+
+go 1.24
+
+require github.com/google/uuid v1.6.0
+```
+
+You never edit the `require` block by hand. Import what you need, then run `go mod tidy` and the toolchain adds what is used and removes what is not.
+
+## Declarations and Zero Values
+
+Go has two ways to declare a variable, and the short form is what you will use most:
+
+```go
+var count int          // explicit type, zero value
+name := "shahriar"     // inferred type, function scope only
+const maxRetries = 3   // compile-time constant
+```
+
+The concept that trips up newcomers is the **zero value**. Every type has one, and a declared variable is always usable without initialization:
+
+| Type | Zero value |
+|------|-----------|
+| Numeric types | `0` |
+| `string` | `""` |
+| `bool` | `false` |
+| Pointers, slices, maps, channels, funcs, interfaces | `nil` |
+| Structs | Each field set to its own zero value |
+
+This is why idiomatic Go rarely needs constructors. A `sync.Mutex` is ready to lock at its zero value. A `bytes.Buffer` is ready to write. Design your own types the same way and callers get less ceremony:
+
+```go
+type Counter struct {
+    mu     sync.Mutex
+    values map[string]int
+}
+
+// Usable as `var c Counter` — no New() needed for the mutex,
+// but the map still has to be made before writing to it.
+func (c *Counter) Inc(key string) {
+    c.mu.Lock()
+    defer c.mu.Unlock()
+    if c.values == nil {
+        c.values = make(map[string]int)
+    }
+    c.values[key]++
+}
+```
+
+## Slices Are the Only List You Need
+
+Arrays in Go have a fixed length baked into their type, so `[3]int` and `[4]int` are different types. You will almost never write one. Slices are the growable view on top:
+
+```go
+nums := []int{1, 2, 3}
+nums = append(nums, 4)        // append returns a new slice header
+sub := nums[1:3]              // [2 3] — shares the same backing array
+fmt.Println(len(nums), cap(nums))
+```
+
+Two things worth internalizing:
+
+- **`append` may or may not allocate.** If capacity allows, it writes in place and returns a slice pointing at the same array. If not, it allocates a bigger array and copies. That is why you must always assign the result back.
+- **Slicing shares memory.** `sub` above is a window into `nums`. Writing `sub[0] = 99` changes `nums[1]`. When you need independence, copy explicitly:
+
+```go
+independent := make([]int, len(sub))
+copy(independent, sub)
+```
+
+If you know the final size, preallocate. It turns N reallocations into one:
+
+```go
+out := make([]string, 0, len(users))   // len 0, cap len(users)
+for _, u := range users {
+    out = append(out, u.Email)
+}
+```
+
+## Maps
+
+Maps are hash tables with a comparable key type:
+
+```go
+ages := map[string]int{"ada": 36}
+
+ages["alan"] = 41
+delete(ages, "ada")
+
+age, ok := ages["ada"]   // ok is false; age is the zero value
+```
+
+The two-value form is the important one. A missing key returns the zero value, so `ages["nobody"]` gives you `0` rather than an error, and without `ok` you cannot tell a stored zero from an absent key.
+
+Two rules that bite people in production:
+
+- **Iteration order is randomized.** Deliberately. If you need stable output, collect the keys and sort them.
+- **Maps are not safe for concurrent use.** A concurrent read and write is a runtime fatal error, not a subtle race you can postpone. Guard with a mutex, or use `sync.Map` for the specific case of many reads and few writes.
+
+## Strings, Bytes, and Runes
+
+A Go string is an immutable slice of bytes that happens to hold UTF-8. Indexing gives you a byte; ranging gives you a decoded rune with its byte offset:
+
+```go
+s := "héllo"
+fmt.Println(len(s))       // 6 — bytes, not characters
+fmt.Println(s[1])         // 195 — one byte of a two-byte rune
+
+for i, r := range s {
+    fmt.Printf("%d: %c\n", i, r)   // offsets skip 1 -> 3
+}
+```
+
+Building strings in a loop with `+=` allocates every iteration. Use a builder:
+
+```go
+var b strings.Builder
+for _, part := range parts {
+    b.WriteString(part)
+}
+result := b.String()
+```
+
+## Errors Are Values
+
+Go has no exceptions for ordinary failure. Functions return an error as their last value and you handle it right there:
+
+```go
+data, err := os.ReadFile("config.json")
+if err != nil {
+    return fmt.Errorf("read config: %w", err)
+}
+```
+
+The `%w` verb wraps, which preserves the original error for inspection while adding context. That gives you two inspection tools:
+
+```go
+// Is: compare against a sentinel value
+if errors.Is(err, os.ErrNotExist) {
+    return defaultConfig(), nil
+}
+
+// As: extract a concrete error type to read its fields
+var pathErr *fs.PathError
+if errors.As(err, &pathErr) {
+    log.Printf("failed on path %s", pathErr.Path)
+}
+```
+
+Define sentinels for conditions callers must branch on, and custom types when they need details:
+
+```go
+var ErrNotFound = errors.New("not found")
+
+type ValidationError struct {
+    Field  string
+    Reason string
+}
+
+func (e *ValidationError) Error() string {
+    return fmt.Sprintf("field %s: %s", e.Field, e.Reason)
+}
+```
+
+Two habits keep error handling from becoming noise: add context that says what *you* were doing, not what the callee already said, and never log-and-return the same error — pick one, or the same failure gets printed five times at five layers.
+
+`panic` is for programmer bugs and unrecoverable startup failures. It is not error handling.
+
+## defer
+
+`defer` schedules a call for when the surrounding function returns, on any path, including a panic. It is how Go does cleanup without `finally`:
+
+```go
+func process(path string) error {
+    f, err := os.Open(path)
+    if err != nil {
+        return err
+    }
+    defer f.Close()
+
+    // ... any number of returns below; the file still closes
+    return decode(f)
+}
+```
+
+Arguments are evaluated at the `defer` statement, not at execution, and deferred calls run in LIFO order. The classic mistake is deferring inside a loop, where nothing releases until the whole function exits:
+
+```go
+for _, path := range paths {
+    f, _ := os.Open(path)
+    defer f.Close()      // leaks file handles until process() returns
+}
+```
+
+Extract the body into its own function so each iteration cleans up as it goes.
+
+## The Loop Variable Fix
+
+Before Go 1.22, loop variables were reused across iterations, which made this the single most common Go bug:
+
+```go
+for _, item := range items {
+    go func() {
+        process(item)     // pre-1.22: every goroutine saw the last item
+    }()
+}
+```
+
+As of Go 1.22 each iteration gets its own variable, so this does what it looks like. The `go` directive in your `go.mod` selects the behavior, which is a real reason to keep it current.
+
+## The Toolchain You Already Have
+
+Go ships the tools other ecosystems bolt on:
+
+```bash
+go build ./...              # compile everything
+go test ./... -race         # run tests with the race detector
+go test ./... -cover        # coverage
+go vet ./...                # correctness heuristics beyond the compiler
+gofmt -l .                  # list files that are not canonically formatted
+go run ./cmd/api            # compile and run in one step
+```
+
+Two of these deserve a place in CI on day one. `go vet` catches printf argument mismatches, unused results, and accidentally copied locks. `-race` catches unsynchronized access to the same memory, and it catches things review never will — run your suite with it even when you think you have no concurrency.
+
+Formatting is not a debate in Go. `gofmt` has one style, every editor runs it on save, and the whole community reads the same layout.
+
+## Wrapping Up
+
+None of this is clever, and that is the point. Go bets that a small language with strong tooling beats an expressive one with a large learning surface, especially on a team. Zero values, explicit errors, and `defer` cover the majority of the code you will write.
+
+In [Part 2](/blog/go-part-2-structs-interfaces-and-package-design) we get to where Go design decisions start to matter: structs, methods, and interfaces defined at the point of use.
+
+Questions or corrections? Find me on [X](https://x.com/swimshahriar).

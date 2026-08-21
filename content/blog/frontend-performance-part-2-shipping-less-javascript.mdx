@@ -1,0 +1,223 @@
+---
+title: "Frontend Performance — Part 2: Shipping Less JavaScript"
+description: "The fixes: code splitting that follows real routes, cutting hydration cost, image and font strategy, containing third-party scripts, and keeping interactions under 200ms."
+date: "2026-06-14"
+tags: ["Performance", "React", "Next.js", "Series"]
+published: true
+---
+
+## The Expensive Byte
+
+[Part 1](/blog/frontend-performance-part-1-measuring-what-matters) was about measurement. Now the fixes — and they all come back to one asymmetry.
+
+100KB of images and 100KB of JavaScript cost wildly different amounts. The images decode off the main thread, progressively, and can be lazy-loaded. The JavaScript must be downloaded, parsed, compiled, and executed on the main thread before anything it controls responds to a tap. On a mid-range Android, that is where seconds disappear.
+
+So the ordering of every optimization below follows from one rule: **the cheapest JavaScript is the JavaScript you do not ship.**
+
+## Find Out What You Are Actually Shipping
+
+Before cutting, look. The browser's coverage tool shows how much of each bundle went unused on load, and a bundle analyzer shows what is in it:
+
+```bash
+# Next.js
+ANALYZE=true pnpm build
+
+# Anything with a build step
+npx source-map-explorer dist/assets/*.js
+```
+
+The pattern is boringly consistent. A handful of dependencies dominate, and they are rarely the ones you would guess:
+
+| The problem | The fix |
+|---|---|
+| `moment` for one date format | `date-fns` with per-function imports, or `Intl.DateTimeFormat` |
+| `lodash` for `debounce` and `groupBy` | Copy the twelve lines, or import the single module |
+| A full icon set for nine icons | Per-icon imports, or inline SVG |
+| A charting library on every page | Dynamic import on the one route that charts |
+| Two date libraries, because two people chose | Pick one, write it in the README |
+
+`Intl` deserves its own mention. Date formatting, number formatting, currency, relative time, plurals, collation — all built into every browser, all zero bytes. A meaningful share of the formatting libraries I have removed were replaceable by two lines of `Intl`.
+
+## Split Along Routes, Then Along Interaction
+
+Route-level splitting is table stakes and most frameworks do it for you. The wins after that come from deferring code that is present on load but not needed for the first paint:
+
+```tsx
+// Heavy, below the fold, or behind a click
+const CodeEditor = dynamic(() => import("@/components/code-editor"), {
+  ssr: false,                       // no server render, no hydration
+  loading: () => <EditorSkeleton />, // reserve the space, protect CLS
+});
+```
+
+Good candidates, in the order I usually find them:
+
+- **Modals, drawers, and command palettes** — nobody has opened it yet
+- **Rich text and code editors** — often the single largest dependency in an app
+- **Charts and data grids** — heavy, and usually one route
+- **Video players and maps** — load on interaction, show a static preview first
+- **Anything below the fold** that is not needed to paint
+
+Two ways to get this wrong. Splitting something needed immediately just adds a round trip on the critical path. And splitting without reserving layout space trades a JavaScript problem for a CLS problem — always give the placeholder the real component's dimensions.
+
+## Server Components Change the Arithmetic
+
+The genuinely new tool of the last few years. A React Server Component runs on the server, sends rendered output, and ships **none** of its own JavaScript to the client. Its dependencies stay server-side too.
+
+That reframes the question from "how do I make this component smaller?" to "does this component need to be interactive at all?"
+
+```tsx
+// Server Component — default in the App Router.
+// The markdown library never reaches the browser.
+import { renderMarkdown } from "@/lib/markdown";
+
+export default async function Article({ slug }: { slug: string }) {
+  const post = await getPost(slug);
+  return (
+    <article>
+      <h1>{post.title}</h1>
+      <div dangerouslySetInnerHTML={{ __html: renderMarkdown(post.body) }} />
+      <LikeButton postId={post.id} /> {/* the only client component */}
+    </article>
+  );
+}
+```
+
+The pattern that pays off: **push `"use client"` to the leaves.** A client boundary at the top of the tree drags everything below it to the browser. Marking one button interactive is a few hundred bytes; marking the layout interactive is the whole page.
+
+Two habits to build:
+
+- Fetch data in server components, near where it is used. Parallel `await`s in sibling components beat one waterfall at the root.
+- Wrap slow sections in `Suspense` so the shell streams immediately instead of the whole route waiting on the slowest query.
+
+None of this requires a framework migration. The same instinct — how much of this is genuinely interactive? — cuts bundles in any stack.
+
+## Images: Dimensions, Format, Priority
+
+Images are usually the LCP element, so this is the highest-leverage non-JavaScript work.
+
+- **Always set width and height** (or `aspect-ratio`). This is the single biggest CLS fix, and it costs nothing.
+- **Serve AVIF or WebP** with a fallback. Typically 30–50% smaller than JPEG at equivalent quality.
+- **Serve the right size** via `srcset` and `sizes`. Sending a 2400px hero to a 390px phone wastes bandwidth *and* decode time.
+- **Mark the LCP image eager and high priority.** Lazy-loading your hero is an own goal — it delays exactly the element being measured.
+
+```tsx
+// next/image handles srcset, format negotiation, and dimensions
+<Image
+  src="/hero.jpg"
+  alt="Product dashboard"
+  width={1200}
+  height={630}
+  priority              // preloads, sets fetchpriority=high, disables lazy
+/>
+```
+
+Everything below the fold gets `loading="lazy"`. Everything above it does not.
+
+## Fonts: Two Failure Modes
+
+Web fonts fail in two directions. **FOIT** — invisible text while the font loads, which delays LCP because text is often the largest element. **FOUT** — fallback text that reflows when the real font arrives, which is CLS.
+
+The combination that avoids both:
+
+```css
+@font-face {
+  font-family: "Inter";
+  src: url("/fonts/inter-var.woff2") format("woff2");
+  font-weight: 100 900;        /* one variable file, every weight */
+  font-display: swap;          /* render fallback immediately */
+  size-adjust: 105%;           /* match fallback metrics, kill the reflow */
+  unicode-range: U+0000-00FF;  /* subset to what you actually render */
+}
+```
+
+Plus: self-host rather than fetching from a third-party origin (one less connection, no cross-origin cache to miss), preload the one font used above the fold, and cap yourself at two families. `next/font` does the metric matching and preloading automatically, which is why I reach for it.
+
+## Third Parties Are Someone Else's Main Thread
+
+Analytics, tag managers, chat widgets, session replay, A/B testing. Each one is code you did not write, running on your main thread, changing without your knowledge. In most audits I have done, third parties account for the majority of blocking time.
+
+The playbook:
+
+- **Audit on a schedule.** There is always at least one tag nobody can name.
+- **Load after interactive, not before.** Analytics does not need to beat your content.
+- **Use a facade for widgets.** Render a static button that looks like the chat launcher; load the real 300KB widget only when it is clicked.
+- **Never let a third party be render-blocking.** If it fails or hangs, your page should not.
+
+```tsx
+import Script from "next/script";
+
+<Script src="https://example.com/analytics.js" strategy="lazyOnload" />
+```
+
+Where a vendor offers a server-side or edge integration instead of a client script, take it. The measurement is the same and the main thread stays yours.
+
+## INP: Keep the Main Thread Free
+
+A long task is anything holding the main thread over 50ms. During one, clicks queue and the page feels broken. Fixing INP is mostly about making tasks shorter.
+
+**Yield, so pending input can run.** The browser cannot interrupt your loop, so hand control back voluntarily:
+
+```ts
+async function processAll(items: Item[]) {
+  for (const [i, item] of items.entries()) {
+    process(item);
+
+    // Every 50 items, let queued input and paint through
+    if (i % 50 === 0) {
+      await scheduler.yield?.() ??
+        new Promise((r) => setTimeout(r, 0));
+    }
+  }
+}
+```
+
+**Paint feedback before doing the work.** Users tolerate slow far better than unresponsive. Update the visual state, yield once, then run the expensive part.
+
+**Mark non-urgent updates as such.** In React, a transition lets the urgent update (the keystroke) paint while the expensive one (filtering 10,000 rows) renders at lower priority:
+
+```tsx
+const [query, setQuery] = useState("");
+const [isPending, startTransition] = useTransition();
+
+function onChange(e: React.ChangeEvent<HTMLInputElement>) {
+  setQuery(e.target.value);                    // urgent: the input responds
+  startTransition(() => setFilter(e.target.value)); // interruptible
+}
+```
+
+**Stop reading layout in loops.** Every read of `offsetHeight`, `getBoundingClientRect`, or `scrollTop` after a write forces a synchronous re-layout. Interleave them in a loop and you get layout thrash — quadratic work for a linear task. Batch all reads, then all writes.
+
+**Render fewer nodes.** No memoization saves a 5,000-row table. Virtualize it, paginate it, or aggregate it server-side. The fastest render is the one with less to render.
+
+On React memoization specifically: reach for `memo`, `useMemo`, and `useCallback` when a profile shows a specific component re-rendering expensively. Applied preemptively everywhere, they add comparison cost, allocation, and dependency-array bugs in exchange for nothing measurable.
+
+## Cheap Wins Worth Doing Anyway
+
+Not glamorous, all real:
+
+- **Compress with Brotli.** Roughly 15–20% better than gzip on text.
+- **Cache immutably.** Hashed asset filenames plus `Cache-Control: public, max-age=31536000, immutable`.
+- **Preconnect to origins on the critical path,** and only those — each speculative connection costs.
+- **Preload the LCP resource** if it is discovered late by the parser.
+- **Use `content-visibility: auto`** on long lists of off-screen sections to skip their rendering work until scrolled near.
+- **Fix your redirect chains.** Each hop is a full round trip before a single byte of content.
+- **Serve from the edge.** For a mostly-static page, a CDN hit beats every application-level optimization on this list.
+
+## The Order I Work In
+
+1. **Measure first**, with field data. ([Part 1](/blog/frontend-performance-part-1-measuring-what-matters).)
+2. **Fix the LCP element.** Usually one image, one late-discovered resource, or a slow server response.
+3. **Cut the largest dependencies.** Bundle analyzer, top three offenders.
+4. **Move what is not interactive to the server.** Or delete the JavaScript entirely.
+5. **Break up long tasks** on the routes where interaction actually happens.
+6. **Contain third parties.**
+7. **Set a budget** so it stays fixed.
+
+Steps 2 and 3 are usually the majority of the win. It is tempting to start with the clever stuff — every performance post you read is about the clever stuff — but I have never audited a slow site where the boring wins were already taken.
+
+## Series Wrap-Up
+
+Two posts: [how to measure](/blog/frontend-performance-part-1-measuring-what-matters), and what to do about it. The underlying idea is that frontend performance is not a bag of tricks but a budget — every byte and every millisecond is spent on something, and the job is deciding what deserves it.
+
+What is your worst offender? I collect these — [X](https://x.com/swimshahriar).

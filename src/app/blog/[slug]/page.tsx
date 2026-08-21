@@ -56,14 +56,20 @@ const mdxComponents = {
   li: (props: React.HTMLAttributes<HTMLLIElement>) => (
     <li className="leading-relaxed" {...props} />
   ),
-  a: (props: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
-    <a
-      className="text-primary underline underline-offset-4 hover:text-primary/80 transition-colors"
-      target="_blank"
-      rel="noopener noreferrer"
-      {...props}
-    />
-  ),
+  a: ({ href, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => {
+    // Keep in-site links (cross-post references, anchors) in the same tab.
+    const isInternal = href?.startsWith("/") || href?.startsWith("#");
+    return (
+      <a
+        href={href}
+        className="text-primary underline underline-offset-4 hover:text-primary/80 transition-colors"
+        {...(isInternal
+          ? {}
+          : { target: "_blank", rel: "noopener noreferrer" })}
+        {...props}
+      />
+    );
+  },
   blockquote: (props: React.HTMLAttributes<HTMLQuoteElement>) => (
     <blockquote
       className="border-l-2 border-primary pl-4 italic text-muted-foreground my-4"
