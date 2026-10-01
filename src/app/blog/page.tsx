@@ -2,8 +2,9 @@ import { getAllPosts } from "@/lib/blog";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { format } from "date-fns";
-import { ArrowLeft, ArrowRight, Clock, Calendar } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { BlogList, type BlogListItem } from "@/components/blog-list";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -13,13 +14,24 @@ export const metadata: Metadata = {
 };
 
 export default function BlogPage() {
-  const posts = getAllPosts();
+  // Strip `content` before handing posts to the client component — the full
+  // MDX body of every post would otherwise ship in the page payload. Dates are
+  // formatted here so date-fns stays out of the client bundle.
+  const posts: BlogListItem[] = getAllPosts().map((post) => ({
+    slug: post.slug,
+    title: post.title,
+    description: post.description,
+    dateLabel: format(new Date(post.date), "MMM d, yyyy"),
+    dateISO: new Date(post.date).toISOString(),
+    readingTime: post.readingTime,
+    tags: post.tags,
+  }));
 
   return (
     <main className="min-h-screen pt-24 pb-16">
       <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="mb-12">
+        <div className="mb-8">
           <Button
             asChild
             variant="ghost"
@@ -46,56 +58,7 @@ export default function BlogPage() {
           </p>
         </div>
 
-        {/* Posts */}
-        {posts.length === 0 ? (
-          <div className="text-center py-20 rounded-xl border border-border/50 bg-card/50">
-            <p className="font-mono text-sm text-muted-foreground">
-              No posts yet. Check back soon!
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {posts.map((post) => (
-              <Link
-                key={post.slug}
-                href={`/blog/${post.slug}`}
-                className="group block rounded-xl border border-border/50 bg-card/50 backdrop-blur-sm p-6 hover:border-primary/20 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <h2 className="text-lg font-semibold group-hover:text-primary transition-colors mb-2 line-clamp-2">
-                      {post.title}
-                    </h2>
-                    <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
-                      {post.description}
-                    </p>
-                    <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <Calendar className="h-3 w-3" />
-                        {format(new Date(post.date), "MMM d, yyyy")}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
-                        {post.readingTime}
-                      </span>
-                      <div className="flex gap-1.5">
-                        {post.tags.slice(0, 3).map((tag) => (
-                          <span
-                            key={tag}
-                            className="rounded border border-border/50 bg-muted/50 px-2 py-0.5 font-mono"
-                          >
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                  <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all shrink-0 mt-1" />
-                </div>
-              </Link>
-            ))}
-          </div>
-        )}
+        <BlogList posts={posts} />
       </div>
     </main>
   );
