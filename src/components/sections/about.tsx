@@ -1,120 +1,89 @@
 "use client";
 
-import { FadeIn, StaggerContainer, StaggerItem } from "@/components/motion";
-import { Badge } from "@/components/ui/badge";
-import { experiences } from "@/lib/constants";
-import { ExternalLink, Code2, Briefcase, GraduationCap, Zap } from "lucide-react";
+import { FadeIn } from "@/components/motion";
+import { education, languages, siteConfig } from "@/lib/constants";
+import { GraduationCap, Languages, MapPin } from "lucide-react";
+
+const stats = [
+  { value: "5+", label: "Years experience" },
+  { value: "300K+", label: "Products managed" },
+  { value: "4", label: "Engineers coordinated" },
+  { value: "2023", label: "Outstanding Contributor" },
+];
 
 export function AboutSection() {
   return (
-    <section id="about" className="py-24 sm:py-32 relative">
-      <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-        {/* Section Header */}
-        <FadeIn className="text-center mb-16">
-          <Badge
-            variant="outline"
-            className="mb-4 font-mono text-xs border-primary/30 text-primary"
-          >
-            About Me
-          </Badge>
-          <h2 className="text-3xl sm:text-4xl font-bold tracking-tight">
-            Turning <span className="gradient-text">complex problems</span> into
-            elegant solutions
+    <section id="about" className="py-16 sm:py-24">
+      <div className="mx-auto max-w-280 px-6 lg:px-8">
+        <FadeIn className="mb-12">
+          <p className="section-label mb-4">About</p>
+          <h2 className="text-h2 sm:text-h1 max-w-3xl">
+            Data-heavy products, <span className="text-accent">built end to end.</span>
           </h2>
         </FadeIn>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16">
-          {/* Left: Bio */}
-          <FadeIn direction="right" className="space-y-6">
-            <div className="space-y-4 text-muted-foreground leading-relaxed">
-              <p>
-                I&apos;m a Senior Software Engineer with deep expertise in building
-                modern web applications and distributed systems. My core stack
-                revolves around <span className="text-foreground font-medium">React</span>,{" "}
-                <span className="text-foreground font-medium">TypeScript</span>,{" "}
-                <span className="text-foreground font-medium">Next.js</span>, and{" "}
-                <span className="text-foreground font-medium">Go</span>.
-              </p>
-              <p>
-                I thrive at the intersection of frontend craft and backend
-                architecture. Whether it&apos;s optimizing a React rendering pipeline,
-                designing a high-throughput Go microservice, or setting up a CI/CD
-                pipeline, I bring the same attention to detail and passion for
-                quality code.
-              </p>
-              <p>
-                When I&apos;m not coding, you&apos;ll find me contributing to open source,
-                writing technical articles, or exploring the latest in web
-                technologies and system design.
-              </p>
-            </div>
+        <div className="grid grid-cols-1 gap-12 lg:grid-cols-[1.4fr_1fr] lg:gap-16">
+          <FadeIn direction="right" className="space-y-4 text-muted-foreground">
+            <p>
+              I&apos;m a Senior Software Engineer at{" "}
+              <span className="font-medium text-foreground">Strativ</span>,
+              building data-heavy web applications and e-commerce products with{" "}
+              <span className="font-medium text-foreground">React</span>,{" "}
+              <span className="font-medium text-foreground">TypeScript</span>, and{" "}
+              <span className="font-medium text-foreground">Go</span>.
+            </p>
+            <p>
+              Most recently I&apos;ve been building a multi-tenant e-commerce ERP
+              that handles 300K+ products on an event-driven backend. I work
+              directly with clients to gather requirements, then own delivery
+              through architecture, implementation, and release.
+            </p>
+            <p>
+              I coordinate the growth of a team of 4 engineers and work daily
+              with Claude Code, Codex, and GitHub Copilot. Outside work I build
+              open-source tools and write about Go, frontend performance, and AI.
+            </p>
 
-            {/* Quick Stats */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-4">
-              {[
-                { icon: Code2, value: "5+", label: "Years Exp" },
-                { icon: Briefcase, value: "50+", label: "Projects" },
-                { icon: GraduationCap, value: "10+", label: "Open Source" },
-                { icon: Zap, value: "100K+", label: "Lines of Code" },
-              ].map(({ icon: Icon, value, label }) => (
-                <div
-                  key={label}
-                  className="rounded-lg border border-border/50 bg-card/50 p-4 text-center backdrop-blur-sm"
-                >
-                  <Icon className="h-4 w-4 text-primary mx-auto mb-2" />
-                  <p className="text-xl font-bold font-mono">{value}</p>
-                  <p className="text-xs text-muted-foreground">{label}</p>
+            <div className="grid grid-cols-2 gap-4 pt-6 sm:grid-cols-4">
+              {stats.map(({ value, label }) => (
+                <div key={label} className="card p-4">
+                  <p className="text-h3 font-semibold text-foreground">{value}</p>
+                  <p className="mt-1 font-mono text-xs text-subtle">{label}</p>
                 </div>
               ))}
             </div>
           </FadeIn>
 
-          {/* Right: Experience Timeline */}
-          <FadeIn direction="left" delay={0.2}>
-            <div className="space-y-2 mb-6">
-              <h3 className="font-mono text-sm font-semibold text-primary">
-                Experience
-              </h3>
+          <FadeIn direction="left" delay={0.15} className="card divide-y divide-divider">
+            <div className="flex gap-4 p-6">
+              <MapPin className="mt-1 h-4 w-4 shrink-0 text-accent" />
+              <div>
+                <p className="font-mono text-xs uppercase tracking-[0.12em] text-subtle">Based in</p>
+                <p className="mt-1 text-foreground">{siteConfig.location}</p>
+              </div>
             </div>
-            <StaggerContainer className="space-y-6" delay={0.3}>
-              {experiences.map((exp, index) => (
-                <StaggerItem key={index}>
-                  <div className="relative pl-6 border-l-2 border-border/50 hover:border-primary/50 transition-colors group">
-                    <div className="absolute -left-1.75 top-1 h-3 w-3 rounded-full border-2 border-border bg-background group-hover:border-primary transition-colors" />
-                    <div className="space-y-1">
-                      <p className="font-mono text-xs text-primary">
-                        {exp.period}
-                      </p>
-                      <h4 className="font-semibold">{exp.role}</h4>
-                      <a
-                        href={exp.companyUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-primary transition-colors"
-                      >
-                        {exp.company}
-                        <ExternalLink className="h-3 w-3" />
-                      </a>
-                      <p className="text-sm text-muted-foreground leading-relaxed pt-1">
-                        {exp.description}
-                      </p>
-                      {exp.tags && (
-                        <div className="flex flex-wrap gap-1.5 pt-2">
-                          {exp.tags.map((tag) => (
-                            <span
-                              key={tag}
-                              className="inline-flex items-center rounded-full border border-border/50 bg-muted/50 px-2 py-0.5 text-[10px] font-mono text-muted-foreground"
-                            >
-                              {tag}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </StaggerItem>
-              ))}
-            </StaggerContainer>
+            <div className="flex gap-4 p-6">
+              <GraduationCap className="mt-1 h-4 w-4 shrink-0 text-accent" />
+              <div>
+                <p className="font-mono text-xs uppercase tracking-[0.12em] text-subtle">Education</p>
+                <p className="mt-1 text-foreground">{education.degree}</p>
+                <p className="text-sm text-muted-foreground">{education.school}</p>
+                <p className="font-mono text-xs text-subtle">{education.period}</p>
+              </div>
+            </div>
+            <div className="flex gap-4 p-6">
+              <Languages className="mt-1 h-4 w-4 shrink-0 text-accent" />
+              <div>
+                <p className="font-mono text-xs uppercase tracking-[0.12em] text-subtle">Languages</p>
+                <ul className="mt-1 space-y-0.5">
+                  {languages.map(({ name, level }) => (
+                    <li key={name} className="text-sm text-muted-foreground">
+                      <span className="text-foreground">{name}</span> · {level}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
           </FadeIn>
         </div>
       </div>

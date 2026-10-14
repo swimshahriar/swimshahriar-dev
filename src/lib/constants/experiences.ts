@@ -1,65 +1,53 @@
 export interface Experience {
-  role: string;
   company: string;
   companyUrl: string;
+  location: string;
   period: string;
-  description: string;
-  tags?: readonly string[];
+  roles: readonly { title: string; period: string }[];
+  highlights: readonly string[];
+  tags: readonly string[];
 }
 
 export const experiences: Experience[] = [
   {
-    role: "Senior Software Engineer L5",
     company: "Strativ",
     companyUrl: "https://strativ.se",
-    period: "Jan 2026 — Present",
-    description: "",
+    location: "Stockholm, Sweden & Dhaka, Bangladesh (Hybrid)",
+    period: "May 2024 — Present",
+    roles: [
+      { title: "Senior Software Engineer (L5)", period: "Jan 2026 — Present" },
+      { title: "Software Engineer (L4)", period: "May 2024 — Dec 2025" },
+    ],
+    highlights: [
+      "Own delivery of a multi-tenant e-commerce ERP handling 300K+ products on an event-driven Go backend.",
+      "Work directly with Scandinavian clients from requirements through architecture, implementation, and release.",
+      "Built analytics dashboards and real-time monitoring UIs for energy and industrial IoT platforms.",
+      "Growth Coordinator for 4 engineers; maintain a shared RBAC package used across company projects.",
+    ],
     tags: [
-      "React.js",
       "TypeScript",
-      "JavaScript",
-      "Golang",
-      "MongoDB",
-      "React Query",
+      "React",
       "Zustand",
+      "TanStack Query",
       "Material UI",
-      "Leadership",
-    ],
-  },
-  {
-    role: "Software Engineer L4",
-    company: "Strativ",
-    companyUrl: "https://strativ.se",
-    period: "May 2024 — Dec 2025",
-    description:
-      "Led frontend development for multiple high-impact projects while managing and mentoring a team of 5 engineers. Developed a custom RBAC package now standardized across many projects, improving security consistency. Optimized build performance and resolved critical caching issues, improving deployment pipelines. Served as Growth Coordinator, aligning team development with company objectives.",
-    tags: [
-      "React.js",
-      "TypeScript",
-      "JavaScript",
-      "Golang",
-      "React Query",
-      "Zustand",
       "Ant Design",
-      "Leadership",
+      "Recharts",
+      "Go",
+      "Gin",
+      "NATS JetStream",
+      "MongoDB",
     ],
   },
   {
-    role: "Associate Software Engineer",
     company: "Ollyo",
     companyUrl: "https://ollyo.com",
-    period: "Dec 2021 — Apr 2024",
-    description:
-      'Integrated OpenAI for text/image generation with variations and generative fill. Built a Media Manager and Color Library for a page builder app, improving visual coherence and UX. Managed a team of 3, fostering collaboration and knowledge sharing. Recognized as "Outstanding Contributor of 2023" for exceptional impact across projects.',
-    tags: [
-      "React.js",
-      "TypeScript",
-      "JavaScript",
-      "Redux",
-      "Zustand",
-      "React Query",
-      "DnD Kit",
-      "Leadership",
+    location: "Dhaka, Bangladesh",
+    period: "Dec 2021 — May 2024",
+    roles: [{ title: "Associate Software Engineer", period: "Dec 2021 — May 2024" }],
+    highlights: [
+      "Core team member on SP Page Builder 5; built its design system, Media Manager, Color Library, and OpenAI-powered generation features.",
+      "Led a team of 3 engineers; recognized as Outstanding Contributor of 2023.",
     ],
+    tags: ["JavaScript", "TypeScript", "React", "Redux", "TanStack Query", "DnD Kit"],
   },
 ];

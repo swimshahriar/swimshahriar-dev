@@ -210,7 +210,7 @@ export function BlogList({ posts }: { posts: BlogListItem[] }) {
         ) : (
           <kbd
             aria-hidden
-            className="absolute right-3 top-1/2 hidden -translate-y-1/2 rounded border border-border/50 bg-muted/50 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground sm:block"
+            className="absolute right-3 top-1/2 hidden -translate-y-1/2 rounded-sm border border-border-strong bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] text-subtle sm:block"
           >
             /
           </kbd>
@@ -224,10 +224,10 @@ export function BlogList({ posts }: { posts: BlogListItem[] }) {
           onClick={() => writeTags([])}
           aria-pressed={activeTags.length === 0}
           className={cn(
-            "rounded-full border px-3 py-1 font-mono text-xs transition-colors cursor-pointer",
+            "tag cursor-pointer transition-colors",
             activeTags.length === 0
-              ? "border-primary/30 bg-primary/10 text-primary"
-              : "border-border/50 text-muted-foreground hover:border-primary/20 hover:text-foreground",
+              ? "tag-featured"
+              : "hover:border-accent hover:text-foreground",
           )}
         >
           All
@@ -241,10 +241,10 @@ export function BlogList({ posts }: { posts: BlogListItem[] }) {
               onClick={() => toggleTag(tag.name)}
               aria-pressed={active}
               className={cn(
-                "rounded-full border px-3 py-1 font-mono text-xs transition-colors cursor-pointer",
+                "tag cursor-pointer transition-colors",
                 active
-                  ? "border-primary/30 bg-primary/10 text-primary"
-                  : "border-border/50 text-muted-foreground hover:border-primary/20 hover:text-foreground",
+                  ? "tag-featured"
+                  : "hover:border-accent hover:text-foreground",
               )}
             >
               {tag.name}
@@ -257,7 +257,7 @@ export function BlogList({ posts }: { posts: BlogListItem[] }) {
             type="button"
             onClick={() => setShowAllTags((shown) => !shown)}
             aria-expanded={showAllTags}
-            className="rounded-full px-3 py-1 font-mono text-xs text-muted-foreground underline underline-offset-4 transition-colors hover:text-foreground cursor-pointer"
+            className="rounded-control px-3 py-1 font-mono text-xs text-muted-foreground underline underline-offset-4 transition-colors hover:text-foreground cursor-pointer"
           >
             {showAllTags ? "Show fewer" : `+${hiddenTagCount} more`}
           </button>
@@ -266,7 +266,7 @@ export function BlogList({ posts }: { posts: BlogListItem[] }) {
 
       {/* Result count */}
       <div className="mb-6 flex items-center justify-between gap-4">
-        <p aria-live="polite" className="font-mono text-xs text-muted-foreground">
+        <p aria-live="polite" className="font-mono text-xs text-subtle">
           {filtered.length === posts.length
             ? `${posts.length} ${posts.length === 1 ? "post" : "posts"}`
             : `${filtered.length} of ${posts.length} posts`}
@@ -276,7 +276,7 @@ export function BlogList({ posts }: { posts: BlogListItem[] }) {
             variant="ghost"
             size="sm"
             onClick={clearAll}
-            className="h-auto py-1 font-mono text-xs cursor-pointer"
+            className="h-auto py-1 font-mono text-xs"
           >
             Clear filters
           </Button>
@@ -285,7 +285,7 @@ export function BlogList({ posts }: { posts: BlogListItem[] }) {
 
       {/* Posts */}
       {filtered.length === 0 ? (
-        <div className="rounded-xl border border-border/50 bg-card/50 py-20 text-center">
+        <div className="card py-20 text-center">
           <p className="font-mono text-sm text-muted-foreground">
             {posts.length === 0
               ? "No posts yet. Check back soon!"
@@ -296,7 +296,7 @@ export function BlogList({ posts }: { posts: BlogListItem[] }) {
               variant="outline"
               size="sm"
               onClick={clearAll}
-              className="mt-4 font-mono text-xs cursor-pointer"
+              className="mt-4 font-mono text-xs"
             >
               Clear filters
             </Button>
@@ -308,17 +308,17 @@ export function BlogList({ posts }: { posts: BlogListItem[] }) {
             <Link
               key={post.slug}
               href={`/blog/${post.slug}`}
-              className="group block rounded-xl border border-border/50 bg-card/50 backdrop-blur-sm p-6 hover:border-primary/20 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300"
+              className="group card card-lift block p-6 hover:border-border-strong"
             >
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
-                  <h2 className="text-lg font-semibold group-hover:text-primary transition-colors mb-2 line-clamp-2">
+                  <h2 className="text-[1.25rem] font-medium leading-snug group-hover:text-accent transition-colors mb-2 line-clamp-2">
                     {post.title}
                   </h2>
-                  <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
+                  <p className="text-muted-foreground line-clamp-2 mb-3">
                     {post.description}
                   </p>
-                  <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                  <div className="flex flex-wrap items-center gap-3 font-mono text-xs text-subtle">
                     <span className="flex items-center gap-1">
                       <Calendar className="h-3 w-3" />
                       <time dateTime={post.dateISO}>{post.dateLabel}</time>
@@ -332,10 +332,10 @@ export function BlogList({ posts }: { posts: BlogListItem[] }) {
                         <span
                           key={tag}
                           className={cn(
-                            "rounded border px-2 py-0.5 font-mono",
+                            "rounded-sm border px-2 py-0.5 font-mono",
                             activeTags.includes(tag)
-                              ? "border-primary/30 bg-primary/10 text-primary"
-                              : "border-border/50 bg-muted/50",
+                              ? "border-accent text-accent"
+                              : "border-border-strong bg-surface-2",
                           )}
                         >
                           {tag}
@@ -344,7 +344,7 @@ export function BlogList({ posts }: { posts: BlogListItem[] }) {
                     </div>
                   </div>
                 </div>
-                <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all shrink-0 mt-1" />
+                <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-accent group-hover:translate-x-1 transition-all shrink-0 mt-1" />
               </div>
             </Link>
           ))}
