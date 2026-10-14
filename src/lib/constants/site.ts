@@ -1,10 +1,11 @@
 export const siteConfig = {
-  name: "Swim Shahriar",
-  title: "Swim Shahriar — Senior Software Engineer",
+  name: "S. M. Shahriar",
+  title: "S. M. Shahriar — Senior Software Engineer",
   description:
-    "Senior Software Engineer specializing in React, TypeScript, Next.js, and Go. Building performant, scalable web applications.",
+    "Senior Software Engineer with 5+ years building data-heavy web applications and e-commerce products with React, TypeScript, and Go.",
   url: "https://swimshahriar.dev",
   ogImage: "/og.png",
+  location: "Dhaka, Bangladesh",
   links: {
     github: "https://github.com/swimshahriar",
     linkedin: "https://linkedin.com/in/swimshahriar",
@@ -16,7 +17,20 @@ export const siteConfig = {
 export const navItems = [
   { label: "Home", href: "/" },
   { label: "About", href: "/#about" },
+  { label: "Experience", href: "/#experience" },
   { label: "Projects", href: "/#projects" },
   { label: "Blog", href: "/blog" },
   { label: "Contact", href: "/#contact" },
 ] as const;
+
+export const education = {
+  degree: "B.Sc. in Computer Science and Engineering",
+  school: "North South University, Dhaka",
+  period: "2017 — 2021",
+};
+
+export const languages = [
+  { name: "Bangla", level: "Native" },
+  { name: "English", level: "Professional working" },
+  { name: "Hindi", level: "Conversational" },
+];

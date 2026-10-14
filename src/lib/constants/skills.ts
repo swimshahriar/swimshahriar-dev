@@ -1,39 +1,26 @@
 export const skills = [
   {
+    category: "Languages",
+    items: ["JavaScript (ES6+)", "TypeScript", "Go", "HTML", "CSS"],
+  },
+  {
     category: "Frontend",
-    items: [
-      { name: "React", primary: true },
-      { name: "Next.js", primary: true },
-      { name: "TypeScript", primary: true },
-      { name: "Tailwind CSS", primary: true },
-      { name: "React Native" },
-      { name: "HTML/CSS" },
-      { name: "Redux" },
-      { name: "Zustand" },
-    ],
+    items: ["React", "Next.js", "React Router", "Redux", "Zustand", "TanStack Query", "DnD Kit"],
   },
   {
-    category: "Backend",
-    items: [
-      { name: "Go", primary: true },
-      { name: "Node.js", primary: true },
-      { name: "REST APIs", primary: true },
-    ],
+    category: "UI & Data Visualization",
+    items: ["Material UI", "Ant Design", "Tailwind CSS", "Styled Components", "Recharts", "Design Systems"],
   },
   {
-    category: "DevOps & Tools",
-    items: [
-      { name: "Docker", primary: true },
-      { name: "Git", primary: true },
-      { name: "CI/CD", primary: true },
-      { name: "GitHub Actions" },
-      { name: "Linux" },
-      { name: "Copilot", primary: true },
-      { name: "ChatGPT", primary: true },
-    ],
+    category: "Backend & Databases",
+    items: ["Go (Gin)", "Node.js", "Express", "REST APIs", "PostgreSQL", "MongoDB", "NATS JetStream", "Firebase"],
   },
   {
-    category: "Database",
-    items: [{ name: "MongoDB", primary: true }, { name: "PostgreSQL" }],
+    category: "Architecture",
+    items: ["System Design", "Event-Driven Architecture", "Message Queues", "Background Jobs", "Multi-tenancy", "RBAC"],
+  },
+  {
+    category: "AI & Tools",
+    items: ["Claude Code", "OpenAI Codex", "GitHub Copilot", "Docker", "Git", "GitHub", "Figma", "Postman"],
   },
 ];

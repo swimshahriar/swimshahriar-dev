@@ -5,28 +5,25 @@ export interface Project {
   image: string;
   github: string;
   live?: string;
-  featured: boolean;
 }
 
 export const projects: Project[] = [
   {
     title: "Locademy",
     description:
-      "An offline desktop app that creates a structured video library from your own folders, turning scattered local videos into a focused learning experience. Features auto-organized modules, per-video and overall progress tracking, a clean built-in player, auto-advance to the next lesson, and system light/dark theme support — no logins, no uploads, no cloud.",
-    tags: ["Tauri v2", "React", "Rust", "Tailwind CSS"],
+      "An offline video course library for macOS, Windows, and Linux. Turns any folder of videos into modules, with progress tracking, auto-advance, and a built-in player. A Rust backend handles folder scanning and local persistence, and GitHub Actions builds installers for every release tag.",
+    tags: ["Tauri v2", "Rust", "React 19", "TypeScript", "Tailwind CSS", "GitHub Actions"],
     image: "/projects/locademy.png",
     github: "https://github.com/swimshahriar/locademy",
     live: "https://locademy.swimshahriar.dev",
-    featured: true,
   },
   {
     title: "react-access-boundary-v2",
     description:
-      "A React library for managing access control in UI components and routes. Features RouteGuard for route protection, single and multiple permission checks with AND/OR logic, customizable fallback UI, an AccessProvider for global permissions management, a useAccessContext hook, React Suspense compatibility, and full TypeScript support.",
-    tags: ["React", "TypeScript", "Access Control", "Open Source"],
+      "An NPM package for permission-based UI and route protection in React. RouteGuard protects routes, components check single or multiple permissions with AND/OR logic, and an AccessProvider with a useAccessContext hook manages permissions globally. Suspense-compatible, with full TypeScript support.",
+    tags: ["React", "TypeScript", "RBAC", "NPM"],
     image: "/projects/react-access-boundary.png",
     github: "https://github.com/swimshahriar/react-access-boundary-v2",
     live: "https://www.npmjs.com/package/react-access-boundary-v2",
-    featured: true,
   },
 ];

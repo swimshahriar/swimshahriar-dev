@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { FadeIn } from "@/components/motion";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -50,22 +49,15 @@ export function ContactSection() {
   }
 
   return (
-    <section id="contact" className="py-24 sm:py-32 relative bg-muted/30">
-      <div className="absolute inset-0 grid-background opacity-50" />
-
-      <div className="relative z-10 mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+    <section id="contact" className="relative border-t border-divider py-16 sm:py-24 grid-background">
+      <div className="relative z-10 mx-auto max-w-280 px-6 lg:px-8">
         {/* Section Header */}
-        <FadeIn className="text-center mb-16">
-          <Badge
-            variant="outline"
-            className="mb-4 font-mono text-xs border-primary/30 text-primary"
-          >
-            Contact
-          </Badge>
-          <h2 className="text-3xl sm:text-4xl font-bold tracking-tight">
-            Let&apos;s <span className="gradient-text">work together</span>
+        <FadeIn className="mb-12">
+          <p className="section-label mb-4">Contact</p>
+          <h2 className="text-h2 sm:text-h1">
+            Let&apos;s <span className="text-accent">work together.</span>
           </h2>
-          <p className="mt-4 text-muted-foreground max-w-xl mx-auto">
+          <p className="mt-4 text-muted-foreground max-w-xl">
             Have a project in mind or want to discuss opportunities? I&apos;d
             love to hear from you.
           </p>
@@ -76,14 +68,14 @@ export function ContactSection() {
           <FadeIn direction="right" className="space-y-8">
             <div className="space-y-6">
               <div className="flex items-start gap-4">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/5">
-                  <Mail className="h-4 w-4 text-primary" />
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-control border border-border-strong bg-surface-2">
+                  <Mail className="h-4 w-4 text-accent" />
                 </div>
                 <div>
-                  <h3 className="font-semibold mb-1">Email</h3>
+                  <h3 className="font-medium mb-1">Email</h3>
                   <a
                     href={`mailto:${siteConfig.links.email}`}
-                    className="text-sm text-muted-foreground hover:text-primary transition-colors"
+                    className="text-accent hover:underline underline-offset-4"
                   >
                     {siteConfig.links.email}
                   </a>
@@ -91,46 +83,24 @@ export function ContactSection() {
               </div>
 
               <div className="flex items-start gap-4">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/5">
-                  <MapPin className="h-4 w-4 text-primary" />
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-control border border-border-strong bg-surface-2">
+                  <MapPin className="h-4 w-4 text-accent" />
                 </div>
                 <div>
-                  <h3 className="font-semibold mb-1">Location</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Available Worldwide · Remote First
+                  <h3 className="font-medium mb-1">Location</h3>
+                  <p className="text-muted-foreground">
+                    {siteConfig.location} · Open to remote
                   </p>
                 </div>
               </div>
             </div>
 
-            {/* Terminal-style message */}
-            <div className="rounded-xl border border-border/50 bg-card/80 backdrop-blur-sm p-6 overflow-hidden">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="h-3 w-3 rounded-full bg-destructive/60" />
-                <div className="h-3 w-3 rounded-full bg-chart-4/60" />
-                <div className="h-3 w-3 rounded-full bg-neon/60" />
-              </div>
-              <pre className="font-mono text-xs text-muted-foreground leading-relaxed overflow-x-auto">
-                <code>
-                  {`const developer = {
-  name: "Swim Shahriar",
-  role: "Senior Software Engineer",
-  stack: ["React", "TypeScript", "Next.js", "Go"],
-  available: true,
-  coffee: "always ☕"
-};
-
-// Let's build something amazing!`}
-                </code>
-              </pre>
-            </div>
-
-            <div className="flex gap-3">
+            <div className="flex flex-wrap gap-3">
               <Button
                 asChild
                 variant="outline"
                 size="sm"
-                className="font-mono text-xs cursor-pointer"
+                className="cursor-pointer"
               >
                 <a
                   href={siteConfig.links.github}
@@ -144,7 +114,7 @@ export function ContactSection() {
                 asChild
                 variant="outline"
                 size="sm"
-                className="font-mono text-xs cursor-pointer"
+                className="cursor-pointer"
               >
                 <a
                   href={siteConfig.links.linkedin}
@@ -158,7 +128,7 @@ export function ContactSection() {
                 asChild
                 variant="outline"
                 size="sm"
-                className="font-mono text-xs cursor-pointer"
+                className="cursor-pointer"
               >
                 <a
                   href={siteConfig.links.twitter}
@@ -175,7 +145,7 @@ export function ContactSection() {
           <FadeIn direction="left" delay={0.2}>
             <form
               onSubmit={handleSubmit}
-              className="space-y-5 rounded-xl border border-border/50 bg-card/50 backdrop-blur-sm p-6 sm:p-8"
+              className="card space-y-5 p-6 sm:p-8"
             >
               {formState === "success" && (
                 <div className="flex items-center gap-3 rounded-lg border border-green-500/30 bg-green-500/10 p-4 text-sm text-green-600 dark:text-green-400">
@@ -195,7 +165,7 @@ export function ContactSection() {
                 <div className="space-y-2">
                   <label
                     htmlFor="name"
-                    className="text-sm font-medium font-mono"
+                    className="font-mono text-xs uppercase tracking-[0.12em] text-subtle"
                   >
                     Name
                   </label>
@@ -204,13 +174,12 @@ export function ContactSection() {
                     name="name"
                     placeholder="John Doe"
                     required
-                    className="bg-background/50"
                   />
                 </div>
                 <div className="space-y-2">
                   <label
                     htmlFor="email"
-                    className="text-sm font-medium font-mono"
+                    className="font-mono text-xs uppercase tracking-[0.12em] text-subtle"
                   >
                     Email
                   </label>
@@ -220,7 +189,6 @@ export function ContactSection() {
                     type="email"
                     placeholder="john@example.com"
                     required
-                    className="bg-background/50"
                   />
                 </div>
               </div>
@@ -228,7 +196,7 @@ export function ContactSection() {
               <div className="space-y-2">
                 <label
                   htmlFor="subject"
-                  className="text-sm font-medium font-mono"
+                  className="font-mono text-xs uppercase tracking-[0.12em] text-subtle"
                 >
                   Subject
                 </label>
@@ -237,14 +205,13 @@ export function ContactSection() {
                   name="subject"
                   placeholder="Project collaboration"
                   required
-                  className="bg-background/50"
                 />
               </div>
 
               <div className="space-y-2">
                 <label
                   htmlFor="message"
-                  className="text-sm font-medium font-mono"
+                  className="font-mono text-xs uppercase tracking-[0.12em] text-subtle"
                 >
                   Message
                 </label>
@@ -254,14 +221,14 @@ export function ContactSection() {
                   placeholder="Tell me about your project..."
                   rows={5}
                   required
-                  className="bg-background/50 resize-none"
+                  className="resize-none"
                 />
               </div>
 
               <Button
                 type="submit"
                 disabled={formState === "loading"}
-                className="w-full font-mono text-sm glow cursor-pointer"
+                className="w-full cursor-pointer"
               >
                 {formState === "loading" ? (
                   <>
