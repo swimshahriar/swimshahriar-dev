@@ -308,7 +308,7 @@ export function BlogList({ posts }: { posts: BlogListItem[] }) {
             <Link
               key={post.slug}
               href={`/blog/${post.slug}`}
-              className="group card block p-6 transition-colors hover:border-border-strong"
+              className="group card card-lift block p-6 hover:border-border-strong"
             >
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">

@@ -19,7 +19,7 @@ export function ProjectsSection() {
         <StaggerContainer className="grid grid-cols-1 gap-6 md:grid-cols-2">
           {projects.map((project) => (
             <StaggerItem key={project.title} className="h-full">
-              <div className="group card flex h-full flex-col overflow-hidden transition-colors hover:border-border-strong">
+              <div className="group card card-lift flex h-full flex-col overflow-hidden hover:border-border-strong">
                 {/* Header art: grid + a soft amber wash */}
                 <div className="relative flex h-40 items-center justify-center overflow-hidden border-b border-divider bg-linear-to-br from-accent/10 via-transparent to-transparent">
                   <div className="absolute inset-0 grid-background" />

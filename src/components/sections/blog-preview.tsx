@@ -10,7 +10,7 @@ export function BlogPreview() {
   if (posts.length === 0) return null;
 
   return (
-    <section className="py-16 sm:py-24">
+    <section id="blog" className="py-16 sm:py-24">
       <div className="mx-auto max-w-280 px-6 lg:px-8">
         {/* Section Header */}
         <div className="mb-12">
@@ -29,7 +29,7 @@ export function BlogPreview() {
             <Link
               key={post.slug}
               href={`/blog/${post.slug}`}
-              className="group card overflow-hidden transition-colors hover:border-border-strong flex flex-col"
+              className="group card card-lift overflow-hidden hover:border-border-strong flex flex-col"
             >
               {/* Card Header */}
               <div className="h-32 border-b border-divider bg-linear-to-br from-accent/10 via-transparent to-transparent flex items-center justify-center relative overflow-hidden">

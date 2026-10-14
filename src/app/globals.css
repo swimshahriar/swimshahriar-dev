@@ -137,7 +137,12 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground font-sans text-body;  }
+    @apply bg-background text-foreground font-sans text-body;
+  }
+  html {
+    /* Anchor jumps land below the fixed navbar. */
+    scroll-padding-top: 4rem;
+  }
   ::selection {
     background: var(--accent);
     color: var(--on-accent);
@@ -216,6 +221,42 @@
     background: var(--accent);
     animation: cursor-blink 1.1s steps(1) infinite;
   }
+
+  /* Hero snippet: lines appear one after another (delay set inline). */
+  .code-line {
+    display: block;
+    animation: code-line-in 0.4s ease-out both;
+  }
+
+  /* A small amber dot circling the hero's outer ring. */
+  .ring-orbit {
+    animation: spin 48s linear infinite;
+  }
+  .ring-orbit::before {
+    content: "";
+    position: absolute;
+    top: -3px;
+    left: 50%;
+    width: 6px;
+    height: 6px;
+    margin-left: -3px;
+    border-radius: 9999px;
+    background: var(--accent);
+  }
+
+  /* Cards that are links lift slightly on hover. */
+  .card-lift {
+    transition:
+      transform 0.25s ease,
+      border-color 0.25s ease;
+  }
+  .card-lift:hover {
+    transform: translateY(-3px);
+  }
+
+  .reading-progress {
+    display: none;
+  }
 }
 
 @keyframes cursor-blink {
@@ -223,10 +264,62 @@
     opacity: 0;
   }
 }
+@keyframes code-line-in {
+  from {
+    opacity: 0;
+    transform: translateX(-6px);
+  }
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes grow-x {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+/* Scroll-driven extras: only where the browser supports them. */
+@supports (animation-timeline: view()) {
+  .section-label::before {
+    transform-origin: left;
+    animation: grow-x linear both;
+    animation-timeline: view();
+    animation-range: entry 10% entry 90%;
+  }
+
+  .reading-progress {
+    display: block;
+    position: fixed;
+    top: 4rem;
+    left: 0;
+    right: 0;
+    z-index: 40;
+    height: 2px;
+    background: var(--accent);
+    transform-origin: left;
+    animation: grow-x linear both;
+    animation-timeline: scroll(root);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
 
 @media (prefers-reduced-motion: reduce) {
-  .cursor-block {
+  .cursor-block,
+  .code-line,
+  .ring-orbit,
+  .section-label::before {
     animation: none;
+  }
+  .card-lift:hover {
+    transform: none;
   }
 }
 

@@ -46,7 +46,7 @@ function highlightGo(src: string) {
   return nodes;
 }
 
-const highlighted = highlightGo(SNIPPET);
+const lines = SNIPPET.split("\n").map(highlightGo);
 
 function CodeWindow() {
   return (
@@ -59,7 +59,21 @@ function CodeWindow() {
       </div>
       <pre className="overflow-x-auto p-4 font-mono text-code [tab-size:4] sm:p-5">
         <code>
-          {highlighted} <span className="cursor-block" aria-hidden />
+          {lines.map((line, i) => (
+            <span
+              key={i}
+              className="code-line"
+              style={{ animationDelay: `${0.7 + i * 0.09}s` }}
+            >
+              {line}
+              {i === lines.length - 1 && (
+                <>
+                  {" "}
+                  <span className="cursor-block" aria-hidden />
+                </>
+              )}
+            </span>
+          ))}
         </code>
       </pre>
     </div>
@@ -71,7 +85,9 @@ export function HeroSection() {
     <section className="relative flex min-h-screen items-center overflow-hidden bg-background grid-background pt-16">
       {/* Decorative rings */}
       <div aria-hidden className="pointer-events-none absolute inset-0 hidden lg:block">
-        <div className="absolute -right-40 top-1/2 size-[720px] -translate-y-1/2 rounded-full border border-(--ring-1)" />
+        <div className="absolute -right-40 top-1/2 size-[720px] -translate-y-1/2 rounded-full border border-(--ring-1)">
+          <div className="ring-orbit absolute inset-0 rounded-full" />
+        </div>
         <div className="absolute -right-10 top-1/2 size-[460px] -translate-y-1/2 rounded-full border border-(--ring-2)" />
       </div>
 
