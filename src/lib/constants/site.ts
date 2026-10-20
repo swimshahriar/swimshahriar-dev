@@ -10,7 +10,7 @@ export const siteConfig = {
     github: "https://github.com/swimshahriar",
     linkedin: "https://linkedin.com/in/swimshahriar",
     twitter: "https://x.com/swimshahriar",
-    email: "shahriarswim01@gmail.com",
+    email: "hello@swimshahriar.dev",
   },
 };
 
