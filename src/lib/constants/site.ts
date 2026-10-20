@@ -4,7 +4,6 @@ export const siteConfig = {
   description:
     "Senior Software Engineer with 5+ years building data-heavy web applications and e-commerce products with React, TypeScript, and Go.",
   url: "https://swimshahriar.dev",
-  ogImage: "/og.png",
   location: "Dhaka, Bangladesh",
   links: {
     github: "https://github.com/swimshahriar",
